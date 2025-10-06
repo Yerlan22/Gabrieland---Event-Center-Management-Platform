@@ -1,0 +1,331 @@
+@attribute [Authorize(Roles = "Admin")]
+@page "/admin/usuarios"
+@using Microsoft.AspNetCore.Authorization
+@using gabrieland.Client.Models
+@inject HttpClient Http
+@using gabrieland.Client.Components.AdminUsuarios
+@inject IToastService toastService
+
+<h3 class="fw-bold admin-user-title text-center">Administración de Usuarios</h3>
+<hr>
+
+@if (usuarios is null)
+{
+    <p>Cargando usuarios...</p>
+
+    @if (errorMessage != null)
+    {
+        <p class="text-danger">@errorMessage</p>
+    }
+}
+else
+{
+    <div class="px-3 px-md-5 my-4 big-container">
+        <div class="row g-2 mb-3">
+            <div class="col-12 col-md-6">
+                <button class="add-usuario-boton" @onclick="@(() => OpenModalNewUsuario(new Usuario()))">
+                    Agregar Usuario
+                </button>
+            </div>
+            <div class="col-md-2 ms-auto">
+                <input type="text" class="form-control input-buscar-usuario" placeholder="Buscar Usuario" @bind="searchTerm" />
+            </div>
+        </div>
+
+        <!-- Scroll horizontal en tabla para pantallas pequeñas -->
+        <div class="table-responsive">
+            <table class="table table-hover shadow-sm">
+                <thead class="this-table">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Estado</th>
+                        <th>Reservas</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var usuario in GetCurrentPageItems())
+                    {
+                        <UsuarioCardAdmin 
+                            Usuario="usuario" 
+                            OnEdit="OpenModal" 
+                            OnDelete="OpenModalConfirmationDel" 
+                            ContarReservas="ContarReservasUsuario" />
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginación -->
+        <nav aria-label="Paginación de usuarios">
+            <ul class="pagination flex-wrap justify-content-center justify-content-md-end">
+                <li class="page-item">
+                    <button class="page-link" @onclick="() => ChangePage(currentPage - 1)"
+                            disabled="@(currentPage == 1)">Ant
+                    </button>
+                </li>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    var pageNumber = i;
+                    <li class="page-item @(currentPage == pageNumber ? "active" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(pageNumber)">@pageNumber</button>
+                    </li>
+                }
+                <li class="page-item">
+                    <button class="page-link" @onclick="() => ChangePage(currentPage + 1)"
+                            disabled="@(currentPage == totalPages)">Sig
+                    </button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}
+
+@if (showModal && selectedUsuario is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <UsuarioModalAdmin Usuario="@selectedUsuario" CloseIt="@CloseModal" OnSave="@HandleEditUsuario" />
+        </div>
+    </div>
+}
+
+@if (showModalNewUsuario && newUsuario is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <UsuarioModalAdmin Usuario="@newUsuario" CloseIt="@CloseModalNewUsuario" OnSave="@HandleNewUsuario" />
+        </div>
+    </div>
+}
+
+@if (showModalConfirmationDel && deletingUsuarioId != 0)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <ConfirmationModal EntityId="@deletingUsuarioId" DoCancel="@CloseModalConfirmationDel" DoConfirmation="@HandleUsuarioDelete" />
+        </div>
+    </div>
+}
+
+@code {
+    private List<Usuario>? usuarios;
+    private Dictionary<int, int> reservasPorUsuario = new Dictionary<int, int>();
+    private string searchTerm = "";
+    private string? errorMessage;
+    private int currentPage = 1;
+    private int pageSize = 7;
+    private int totalPages => (int)Math.Ceiling((double)(usuarios?.Count ?? 0) / pageSize);
+    private bool showModal = false;
+    private Usuario? selectedUsuario;
+    private bool showModalNewUsuario = false;
+    private Usuario? newUsuario;
+    private bool showModalConfirmationDel = false;
+    private int deletingUsuarioId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Cargar usuarios
+            usuarios = await Http.GetFromJsonAsync<List<Usuario>>("Usuarios?incluirInactivos=true");
+            
+            // Cargar conteo de reservas por usuario
+            var reservasCount = await Http.GetFromJsonAsync<Dictionary<int, int>>("reservas/count");
+            reservasPorUsuario = reservasCount ?? new Dictionary<int, int>();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener datos: " + ex.Message;
+        }
+    }
+
+    private int ContarReservasUsuario(int usuarioId)
+    {
+        return reservasPorUsuario.TryGetValue(usuarioId, out var count) ? count : 0;
+    }
+
+    // Métodos de paginación
+    private void ChangePage(int newPage)
+    {
+        if (newPage >= 1 && newPage <= totalPages)
+        {
+            currentPage = newPage;
+        }
+    }
+
+    private IEnumerable<Usuario> GetCurrentPageItems()
+    {
+        if (usuarios == null)
+        {
+            return Enumerable.Empty<Usuario>();
+        }
+        return usuarios!
+            .Where(s => string.IsNullOrEmpty(searchTerm) || 
+                  s.nombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                  s.apellido.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize);
+    }
+
+    // Métodos para modales (sin cambios)
+    private void OpenModal(Usuario usuario)
+    {
+        selectedUsuario = usuario;
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        selectedUsuario = null;
+    }
+
+    private async Task HandleEditUsuario(Usuario usuario)
+    {
+        await UpdateUsuario(usuario);
+        CloseModal();
+    }
+
+    private void OpenModalNewUsuario(Usuario usuario)
+    {
+        newUsuario = usuario;
+        showModalNewUsuario = true;
+    }
+
+    private void CloseModalNewUsuario()
+    {
+        showModalNewUsuario = false;
+        newUsuario = null;
+    }
+
+    private async Task HandleNewUsuario(Usuario usuario)
+    {
+        await CreateUsuario(usuario);
+        CloseModalNewUsuario();
+    }
+
+    private void OpenModalConfirmationDel(int id)
+    {
+        deletingUsuarioId = id;
+        showModalConfirmationDel = true;
+    }
+
+    private void CloseModalConfirmationDel()
+    {
+        showModalConfirmationDel = false;
+        deletingUsuarioId = 0;
+    }
+
+    private async Task HandleUsuarioDelete(int usuarioId)
+    {
+        await DeleteUsuario(usuarioId);
+        CloseModalConfirmationDel();
+    }
+
+    // Métodos CRUD (sin cambios)
+    private async Task CreateUsuario(Usuario nuevoUsuario)
+    {
+        try
+        {   
+            var response = await Http.PostAsJsonAsync("Usuarios", nuevoUsuario);
+            if (response.IsSuccessStatusCode)
+            {   
+                var usuarioCreado = await response.Content.ReadFromJsonAsync<Usuario>();
+                if (usuarios is not null && usuarioCreado != null)
+                {
+                    usuarios.Add(usuarioCreado);
+                    ShowToast("addSuccess");
+                }
+                else
+                {
+                    errorMessage = "El usuario retornado es null";
+                    ShowToast("addFailed");
+                }
+            }
+            else
+            {
+                errorMessage = "Error al crear usuario";
+                ShowToast("addFailed");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("addFailed");
+        }
+    }
+
+    private async Task UpdateUsuario(Usuario usuario)
+    {
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"Usuarios/{usuario.ID_Usuario}", usuario);
+            ShowToast("updateSuccess");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("updateFailed");
+        }
+    }
+
+    private async Task DeleteUsuario(int id)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"Usuarios/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                if (usuarios is not null)
+                {
+                    usuarios.RemoveAll(s => s.ID_Usuario == id);
+                    ShowToast("deleteSuccess");
+                }
+                else
+                {
+                    errorMessage = "Lista de usuarios no disponible para eliminar.";
+                    ShowToast("deleteFailed");
+                }
+            }
+            else
+            {
+                errorMessage = "No se pudo eliminar el usuario";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Write("Error: " + ex.Message);
+            ShowToast("deleteFailed");
+        }
+    }
+
+    // Notificaciones
+    private void ShowToast(string happening)
+    {   
+        switch (happening)
+        {
+            case "updateSuccess":
+                toastService.ShowSuccess("Usuario editado exitosamente.");
+                break;
+            case "updateFailed":
+                toastService.ShowError("Usuario no pudo ser editado.");
+                break;
+            case "addSuccess":
+                toastService.ShowSuccess("Usuario agregado exitosamente.");
+                break;
+            case "addFailed":
+                toastService.ShowError("Usuario no pudo ser agregado.");
+                break;
+            case "deleteSuccess":
+                toastService.ShowSuccess("Usuario eliminado exitosamente.");
+                break;
+            case "deleteFailed":
+                toastService.ShowError("Usuario no pudo ser eliminado.");
+                break;
+            default:
+                toastService.ShowInfo("Mensaje perdido.");
+                break;
+        }
+    }
+}

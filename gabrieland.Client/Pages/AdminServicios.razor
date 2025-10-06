@@ -1,0 +1,430 @@
+@attribute [Authorize(Roles = "Admin")]
+@page "/admin/servicios"
+@using Microsoft.AspNetCore.Authorization
+@using gabrieland.Client.Models
+@inject HttpClient Http
+@using gabrieland.Client.Components.AdminServicios
+@inject IToastService toastService
+
+<h3 class="fw-bold admin-ser-title text-center">Administración de servicios</h3>
+<hr>
+
+@if (servicios is null)
+{
+    <p>Cargando lista de servicios...</p>
+
+    @if (errorMessage != null)
+    {
+        <p class="text-danger">@errorMessage</p>
+    }
+}
+else
+{
+    <div class="px-3 px-md-5 my-4 big-container">
+
+        <div class="row g-2 mb-3">
+            <div class="col-12 col-md-6">
+                <button class="add-sala-boton" @onclick="@(() => OpenModalNewServicio(new ServicioAdicional()))">
+                    Agregar Servicio
+                </button>
+            </div>
+            <div class="col-md-2 ms-auto">
+                <input type="text" class="form-control input-buscar-sala" placeholder="Buscar servicio"
+                @bind="searchTerm" />
+            </div>
+        </div>
+
+        <!-- Scroll horizontal en tabal para pantallas pequeñas -->
+        <div class="table-responsive">
+            <table class="table table-hover shadow-sm">
+                <thead class="this-table">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Tipo</th>
+                        <th>Costo</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var servicio in GetCurrentPageItems())
+                    {
+                        <ServiciosCardAdmin Servicio="servicio" OnEdit="OpenModal" OnDelete="OpenModalConfirmationDel" />
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Responsive pagination? -->
+        <nav aria-label="Paginación de usuarios">
+            <ul class="pagination flex-wrap justify-content-center justify-content-md-end">
+                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(currentPage - 1)"
+                    disabled="@(currentPage == 1)">Ant</button>
+                </li>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    var pageNumber = i;
+                    <li class="page-item @(currentPage == pageNumber ? "active" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(pageNumber)">@pageNumber</button>
+                    </li>
+                }
+                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(currentPage + 1)"
+                    disabled="@(currentPage == totalPages)">Sig</button>
+                </li>
+            </ul>
+        </nav>
+
+
+    </div>
+}
+
+@if (showModal && selectedServicio is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <ServiciosModalAdmin UpImage="UploadFotoServicio" FotosServicio="FotosServicios" Servicio="selectedServicio" CloseIt="CloseModal" OnSave="HandleEditServicio" />
+        </div>
+    </div>
+}
+
+@if (showModalNewServicio && newServicio is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <ServiciosModalAdmin UpImage="UploadFotoServicio" Servicio="newServicio" CloseIt="CloseModalNewServicio" OnSave="HandleNewServicio" />
+        </div>
+    </div>
+}
+
+@if (showModalConfirmationDel && deletingServicioId != 0)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <ConfirmationModal EntityId="deletingServicioId" DoCancel="CloseModalConfirnationDel"
+            DoConfirmation="HandleServicioDelete" />
+        </div>
+    </div>
+}
+
+@code {
+    private List<ServicioAdicional>? servicios;
+    private string searchTerm = "";
+    private string? errorMessage;
+    private int currentPage = 1;
+    private int pageSize = 7;
+    private int totalPages => (int)Math.Ceiling((double)(servicios?.Count ?? 0) / pageSize);
+
+    //Modal y operaciones de este
+    private bool showModal = false;
+    private ServicioAdicional? selectedServicio;
+
+    private async Task OpenModal(ServicioAdicional servicio)
+    {
+        Console.WriteLine("Voy a abrir");
+        if (servicio == null)
+        {
+            Console.WriteLine("No abri");
+        }
+        selectedServicio = servicio;
+        FotosServicios = await GetFotosByServicioId(servicio.ID_Servicios_Adicionales);
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        selectedServicio = null;
+    }
+
+    private async Task HandleEditServicio(ServicioAdicional servicio)
+    {
+        await UpdateServicio(servicio);
+        CloseModal();
+    }
+
+    //Add new servicio
+    private bool showModalNewServicio = false;
+    private ServicioAdicional? newServicio;
+
+    private void OpenModalNewServicio(ServicioAdicional servicio)
+    {
+        newServicio = servicio;
+        showModalNewServicio = true;
+    }
+
+    private void CloseModalNewServicio()
+    {
+        showModalNewServicio = false;
+        newServicio = null;
+    }
+
+    private async Task HandleNewServicio(ServicioAdicional servicio)
+    {
+        await CreateServicio(servicio);
+        CloseModalNewServicio();
+    }
+
+    //Borrar Servicio
+    private bool showModalConfirmationDel = false;
+    private int deletingServicioId = 0;
+
+    private void OpenModalConfirmationDel(int id)
+    {
+        deletingServicioId = id;
+        showModalConfirmationDel = true;
+    }
+
+    private void CloseModalConfirnationDel()
+    {
+        showModalConfirmationDel = false;
+        deletingServicioId = 0;
+    }
+
+    private async Task HandleServicioDelete(int ServicioId)
+    {
+        await DeleteServicio(ServicioId);
+        CloseModalConfirnationDel();
+    }
+
+    //Backend
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            servicios = await Http.GetFromJsonAsync<List<ServicioAdicional>>("ServiciosAdicionales");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener servicios: " + ex.Message;
+        }
+    }
+
+    private async Task CreateServicio(ServicioAdicional nuevoServicio)
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync("ServiciosAdicionales", nuevoServicio);
+            if (response.IsSuccessStatusCode)
+            {
+                var servicioCreado = await response.Content.ReadFromJsonAsync<ServicioAdicional>();
+                if (servicioCreado is not null)
+                {
+                    if (servicios == null)
+                        servicios = new List<ServicioAdicional>();
+                    servicios.Add(servicioCreado);
+                    ShowToast("addSuccess");
+                }
+                else
+                {
+                    errorMessage = "Error: El servicio recibido fue nulo.";
+                    ShowToast("addFailed");
+                }
+            }
+            else
+            {
+                errorMessage = "Error al crear servicio";
+                ShowToast("addFailed");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("addFailed");
+        }
+    }
+
+    private async Task UpdateServicio(ServicioAdicional servicio)
+    {
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"ServiciosAdicionales/{servicio.ID_Servicios_Adicionales}", servicio);
+            if (response.IsSuccessStatusCode)
+            {
+                if (servicios is not null)
+                {
+                    var index = servicios.FindIndex(s => s.ID_Servicios_Adicionales == servicio.ID_Servicios_Adicionales);
+                    if (index != -1)
+                    {
+                        servicios[index] = servicio;
+                        ShowToast("updateSuccess");
+                    }
+                    else
+                    {
+                        errorMessage = "No se encontró el servicio para actualizar.";
+                        ShowToast("updateFailed");
+                    }
+                }
+                else
+                {
+                    errorMessage = "La lista de servicios está vacía.";
+                    ShowToast("updateFailed");
+                }
+            }
+            else
+            {
+                errorMessage = "Error al actualizar servicio.";
+                ShowToast("updateFailed");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("updateFailed");
+        }
+    }
+
+    private async Task DeleteServicio(int id)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"ServiciosAdicionales/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                if (servicios is not null)
+                {
+                    servicios.RemoveAll(s => s.ID_Servicios_Adicionales == id);
+                    ShowToast("deleteSuccess");
+                }
+                else
+                {
+                    errorMessage = "La lista de servicios no está disponible.";
+                    ShowToast("deleteFailed");
+                }
+            }
+            else
+            {
+                errorMessage = "No se pudo eliminar el servicio";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("deleteFailed");
+        }
+    }
+
+    private async Task ReactivarServicio(int id)
+    {
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Patch, $"ServiciosAdicionales/{id}/reactivar");
+            var response = await Http.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = "No se pudo reactivar el servicio";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+        }
+    }
+
+    private async Task<ServicioAdicional?> GetServicioById(int id)
+    {
+        try
+        {
+            return await Http.GetFromJsonAsync<ServicioAdicional>($"ServiciosAdicionales/{id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener servicio: " + ex.Message;
+            return null;
+        }
+    }
+
+    private void ChangePage(int newPage)
+    {
+        if (newPage >= 1 && newPage <= totalPages)
+        {
+            currentPage = newPage;
+        }
+    }
+
+    private IEnumerable<ServicioAdicional> GetCurrentPageItems()
+    {
+        return servicios!
+        .Where(s => string.IsNullOrEmpty(searchTerm) || s.nombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize);
+    }
+
+    //Mesages
+    private void ShowToast(string happening)
+    {
+        if (happening == "updateSuccess")
+        {
+            toastService.ShowSuccess("El Servicio editado exitosamente!");
+        }
+        else if (happening == "updateFailed")
+        {
+            toastService.ShowError("El Servicio no pudo ser editado.");
+        }
+        else if (happening == "addSuccess")
+        {
+            toastService.ShowSuccess("El Servicio fue agregado exitosamente!");
+        }
+        else if (happening == "addFailed")
+        {
+            toastService.ShowError("El Servicio no pudo ser agregado.");
+        }
+        else if (happening == "deleteSuccess")
+        {
+            toastService.ShowSuccess("El Servicio fue eliminado exitosamente!");
+        }
+        else if (happening == "deleteFailed")
+        {
+            toastService.ShowError("El Servicio no pudo ser eliminado.");
+        }
+        else
+        {
+            toastService.ShowInfo("Mensaje perdido.");
+        }
+    }
+}
+<!-- Imagenes code -->
+@code{
+    private List<FotoServicio>? FotosServicios;
+
+    private async Task<List<FotoServicio>> GetFotosByServicioId(int id)
+    {
+        try
+        {
+            return await Http.GetFromJsonAsync<List<FotoServicio>>($"Servicios/Fotos/{id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener fotos: " + ex.Message;
+            return null;
+        }
+    }
+    private async Task UploadFotoServicio((int ServicioId, IBrowserFile file) data)
+    {
+        try
+        {
+            var content = new MultipartFormDataContent();
+            var streamContent = new StreamContent(data.file.OpenReadStream(long.MaxValue));
+            streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(data.file.ContentType);
+
+            content.Add(streamContent, "file", data.file.Name);
+
+            var response = await Http.PostAsync($"Servicios/Fotos/{data.ServicioId}", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                ShowToast("uploadSuccess");
+            }
+            else
+            {
+                errorMessage = "No se pudo subir la foto";
+                ShowToast("uploadFailed");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al subir la foto: " + ex.Message;
+            ShowToast("uploadFailed");
+        }
+    }
+}

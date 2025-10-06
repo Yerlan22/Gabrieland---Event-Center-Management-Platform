@@ -1,0 +1,299 @@
+@page "/pago/{idReserva:int}"
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using gabrieland.Client.Models
+@using gabrieland.Client.Services
+
+@inject NavigationManager           Nav
+@inject ReservaAppState             AppState
+@inject HttpClient                  Http
+@inject IJSRuntime                  JS
+@inject AuthenticationStateProvider Auth
+
+<h3 class="text-center top-text m-4">Pago de la Reserva</h3>
+<hr />
+
+@if (AppState.ReservaActual is null)
+{
+    <div class="alert alert-warning m-4">
+        No hay reserva cargada.
+        <button class="btn btn-link"
+                @onclick='@(() => Nav.NavigateTo("/perfil/reservas"))'>
+            Volver
+        </button>
+    </div>
+}
+else
+{
+<div class="px-3 px-md-5 my-4">
+    <div class="container">
+        <div class="row">
+            <!-- Resumen servicios -->
+            <div class="col-12 col-lg-8">
+                <div class="barra-servicios d-flex justify-content-between align-items-center mt-4 mb-2">
+                    <h5 class="mb-0">Servicios brindados</h5>
+                </div>
+
+                        <tbody>
+                            <!-- Alquiler Sala: siempre -->
+                            <tr>
+                                <th>Alquiler Sala</th>
+                                <td class="text-end">₡ @precioSala</td>
+                            </tr>
+
+                            <!-- Servicios adicionales -->
+                            @if (AppState.ReservedServicesList.Any())
+                            {
+                                @foreach (var s in AppState.ReservedServicesList)
+                                {
+                                    <tr>
+                                        <th>@s.Nombre</th>
+                                        <td class="text-end">₡ @s.PrecioTotal</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="2" class="text-muted text-center">
+                                        No añadiste servicios.
+                                    </td>
+                                </tr>
+                            }
+
+                            <!-- Total -->
+                            <tr class="table-active fw-bold">
+                                <td>TOTAL</td>
+                                <td class="text-end">₡ @Total</td>
+                            </tr>
+                        </tbody>
+
+            </div>
+
+            <!-- Selector de pago -->
+            <div class="col-12 col-lg-4 sticky-section">
+                <!-- Usamos OnSubmit para que el handler se ejecute incluso si la validación es inválida (pago en efectivo ya no tiene campos) -->
+                <EditForm Model="@input" OnSubmit="ProcesarPago">
+                    <!-- Deja el validador para futuros campos de tarjeta, no bloquea OnSubmit -->
+                    <DataAnnotationsValidator />
+
+                    <div class="card p-3">
+                        <h5 class="mb-3">Método de pago</h5>
+
+                        <InputRadioGroup Value="@input.Metodo"
+                                         ValueChanged="@(EventCallback.Factory.Create<MetodoPago?>(this, MetodoChanged))"
+                                         ValueExpression="(() => input.Metodo)"
+                                         class="d-flex flex-column gap-2 mb-3">
+                            <label class="btn btn-outline-primary text-start">
+                                <InputRadio Value="@MetodoPago.TarjetaStripe" class="me-2" />
+                                Tarjeta
+                            </label>
+                            <label class="btn btn-outline-primary text-start">
+                                <InputRadio Value="@MetodoPago.Efectivo" class="me-2" />
+                                Efectivo
+                            </label>
+                        </InputRadioGroup>
+
+                        @if (input.Metodo == MetodoPago.Efectivo)
+                        {
+                            <p class="fw-light mb-3">El pago se realizará en efectivo al llegar al establecimiento.</p>
+                        }
+                        else if (input.Metodo == MetodoPago.TarjetaStripe)
+                        {
+                            <p class="fw-light mb-3">Presiona continuar para completar tu pago.</p>
+                        }
+
+                        <button type="submit" class="btn-azul w-100 ms-0" disabled="@isBusy">
+                            @(isBusy ? "Procesando…" : "Continuar")
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+@code {
+    /* -------- Parámetros de ruta/consulta -------------------------- */
+    [Parameter] public int idReserva { get; set; }
+    private decimal precioSala = 0;
+
+    /* -------- Claims del usuario ----------------------------------- */
+    private string? nombreCompletoClaim;
+    private string? correoClaim;
+
+    /* -------- ViewModel / estado ----------------------------------- */
+    private readonly PagoInput input = new();
+    private bool isBusy;
+
+    private decimal Total =>
+    precioSala +
+    (decimal)(AppState.ReservedServicesList?.Sum(s => s.PrecioTotal) ?? 0);
+
+    /* -------- Carga inicial ---------------------------------------- */
+    protected override async Task OnParametersSetAsync()
+    {
+        // 1) Claims
+        if (nombreCompletoClaim is null)
+        {
+            var u = (await Auth.GetAuthenticationStateAsync()).User;
+            if (u.Identity?.IsAuthenticated == true)
+            {
+                nombreCompletoClaim = $"{u.FindFirst(ClaimTypes.Name)?.Value ?? ""} " +
+                                      $"{u.FindFirst(ClaimTypes.Surname)?.Value ?? ""}".Trim();
+                correoClaim = u.FindFirst(ClaimTypes.Email)?.Value ?? "";
+            }
+        }
+
+        // 2) Si ya viene la reserva en estado global, salir
+        if (AppState.ReservaActual is not null) return;
+
+        // 3) Cargar reserva y servicios
+        var reserva = await Http.GetFromJsonAsync<Reserva>($"/Reservas/{idReserva}");
+        if (reserva is null)
+        {
+            await JS.InvokeVoidAsync("alert", "No se encontró la reserva.");
+            Nav.NavigateTo("/perfil/reservas");
+            return;
+        }
+
+        var servicios = await Http.GetFromJsonAsync<List<ReservaService>>
+                                   ($"/ServiciosReserva/reserva/{idReserva}");
+
+        AppState.ReservaActual        = reserva;
+        await EnriquecerServiciosAsync(servicios);
+
+        AppState.ReservedServicesList = servicios;
+    
+        /* --- Precio de la sala --- */
+        var sala = await Http.GetFromJsonAsync<Salas>($"/Salas/{reserva.SAL_Id_Sala}");
+        precioSala = sala is null ? 0m : (decimal)sala.Precio;  // conversión explícita
+    }
+
+    /* -------- Cambio de método de pago ----------------------------- */
+    private void MetodoChanged(MetodoPago? metodo)
+    {
+        input.Metodo = metodo;
+    }
+
+    /* -------- Procesar pago ---------------------------------------- */
+    private async Task ProcesarPago(EditContext _)
+    {
+        if (input.Metodo is null) return;
+        isBusy = true;
+
+        int tipoPagoId = (int)input.Metodo.Value;
+
+        /* ---- Stripe ---- */
+        if (input.Metodo == MetodoPago.TarjetaStripe)
+        {
+            var payload = new
+            {
+                descripcion   = ConstruirDescripcionServicios(),
+                monto         = Total,
+                correo        = correoClaim,
+                reservaId     = AppState.ReservaActual.Id_Reserva,
+                tipoPagoId,    
+                urlExito    = $"http://localhost:5068/pago-exitoso/{AppState.ReservaActual.Id_Reserva}",
+                urlCancelacion = "http://localhost:5068/pago-cancelado"
+            };
+
+            var resp = await Http.PostAsJsonAsync("api/stripe/crear-sesion", payload);
+            isBusy = false;
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                await JS.InvokeVoidAsync("alert", "No se pudo crear la sesión de pago.");
+                return;
+            }
+
+            var data = await resp.Content.ReadFromJsonAsync<CheckoutRequestDto>();
+            if (!string.IsNullOrWhiteSpace(data?.url))
+            {
+                await JS.InvokeVoidAsync("redirectToStripe", data.url);
+            }
+            return;
+        }
+        else if (input.Metodo == MetodoPago.Efectivo)
+        {
+            isBusy = false;
+            Nav.NavigateTo($"/pago-efectivo/{AppState.ReservaActual.Id_Reserva}");
+        }
+    }
+    private async Task EnriquecerServiciosAsync(List<ReservaService> servicios)
+    {
+        // 1) Qué ids necesitamos resolver
+        var idsPendientes = servicios
+            .Where(s => string.IsNullOrWhiteSpace(s.Nombre))
+            .Select(s => s.SEA_Id_Servicio)
+            .Distinct()
+            .ToList();
+
+        if (!idsPendientes.Any()) return;
+
+        var tareas = idsPendientes.Select(async id =>
+        {
+            var url = $"ServiciosAdicionales/{id}";   
+            Console.WriteLine($"[DEBUG] GET {url}");
+
+            try
+            {
+                var resp = await Http.GetAsync(url);
+                Console.WriteLine($"[DEBUG]  ← {id}: {(int)resp.StatusCode}");
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"[WARN ]  id={id} devolvió {resp.StatusCode}");
+                    return (id, servicio: (ServicioAdicional?)null);
+                }
+
+                var dto = await resp.Content.ReadFromJsonAsync<ServicioAdicional>();
+                return (id, servicio: dto);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] id={id}: {ex.GetBaseException().Message}");
+                return (id, servicio: (ServicioAdicional?)null);
+            }
+        });
+
+        // 3) Esperamos todas (nunca lanzará excepción porque cada tarea la maneja dentro)
+        var resultados = await Task.WhenAll(tareas);
+
+        // 4) Diccionario Id → Nombre con los que sí llegaron bien
+        var mapa = resultados
+            .Where(r => r.servicio != null)
+            .ToDictionary(r => r.id, r => r.servicio!.nombre);
+
+        // 5) Asignamos los nombres encontrados
+        foreach (var s in servicios)
+            if (mapa.TryGetValue(s.SEA_Id_Servicio, out var nombre))
+                s.Nombre = nombre;
+    }
+    private string ConstruirDescripcionServicios()
+    {
+        // 1) Sala (sin formateo especial)
+        var partes = new List<string>
+        {
+            $"Alquiler Sala (₡ {precioSala})"
+        };
+
+        // 2) Servicios adicionales
+        partes.AddRange(
+            AppState.ReservedServicesList.Select(
+                s => $"{s.Nombre} (₡ {s.PrecioTotal})"));
+
+        // 3) Salto de línea entre ítems
+        var texto = string.Join(Environment.NewLine, partes);
+
+        // 4) Número de reserva
+        texto += Environment.NewLine + $"Reserva #{AppState.ReservaActual!.Id_Reserva}";
+
+        // 5) Cortar a 500 caracteres
+        return texto.Length <= 500 ? texto : texto[..497] + "...";
+    }
+
+}

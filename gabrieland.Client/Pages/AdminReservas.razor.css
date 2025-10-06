@@ -1,0 +1,323 @@
+.container {
+    margin-left: 2rem;
+    margin-right: 2rem;
+}
+
+.admin-usuarios-title {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    font-weight: bold;
+    font-size: 1.75rem;
+}
+
+.btn-morado {
+    background-color: #233760;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.btn-morado:hover {
+    background-color: #3D5481;
+}
+
+.btn-morado:active{
+    transform: translateY(2px) !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Layout para los controles superiores */
+.usuarios-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    color: aliceblue
+}
+
+@media (min-width: 768px) {
+    .usuarios-controls {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .usuarios-controls input {
+        max-width: 250px;
+    }
+}
+
+/* Tarjetas / tabla */
+.card-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Tabla general */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #fff;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+/* Estilo de las cabeceras */
+thead th {
+    background-color: #233760;
+    color: #fff;
+    padding: 0.75rem;
+    text-align: left;
+}
+
+/* Celdas */
+td {
+    padding: 0.75rem;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Acciones alineadas a la derecha */
+td:last-child {
+    text-align: right;
+}
+
+/* Paginación */
+.pagination {
+    margin-top: 1rem;
+    gap: 0.5rem;
+}
+
+.pagination .page-item .page-link {
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+}
+
+    .pagination .active .page-link {
+        background-color: #233760;
+        border-color: #233760;
+        color: #fff;
+    }
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5); /* Fondo oscuro con transparencia */
+    z-index: 1050; /* Asegura que el overlay esté por debajo del modal */
+}
+
+/* Modal Container */
+.modal-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Centra el modal */
+    background-color: none;
+    padding: 20px;
+    min-width: 1000px;
+    max-height: 700px;
+    border-radius: 8px;
+    z-index: 1060; /* Asegura que el modal esté encima del overlay */
+}
+
+    /* Botón de Cerrar */
+    .modal-container .btn-danger {
+        margin-top: 15px;
+         background-color: #233760 !important;   /* morado Bootstrap-ish */
+        border-color:     #233760 !important;
+    }
+
+.admin-user-title{
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    font-weight: bold;
+    font-size: 2rem;
+}
+
+
+.container {
+    margin-left: 2rem;
+    margin-right: 2rem;
+}
+
+.admin-usuarios-title {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    font-weight: bold;
+    font-size: 1.75rem;
+}
+
+.add-usuario-boton {
+    background-color: #233760;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.add-usuario-boton:hover {
+    background-color: #3D5481;
+}
+
+.add-usuario-boton:active{
+    transform: translateY(2px) !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Layout para los controles superiores */
+.usuarios-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    color: aliceblue
+}
+
+@media (min-width: 768px) {
+    .usuarios-controls {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .usuarios-controls input {
+        max-width: 250px;
+    }
+}
+
+/* Tarjetas / tabla */
+.card-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Tabla general */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #fff;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+/* Estilo de las cabeceras */
+thead th {
+    background-color: #233760;
+    color: #fff;
+    padding: 0.75rem;
+    text-align: left;
+}
+
+/* Celdas */
+td {
+    padding: 0.75rem;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Acciones alineadas a la derecha */
+td:last-child {
+    text-align: right;
+}
+
+/* Paginación */
+.pagination {
+    margin-top: 1rem;
+    gap: 0.5rem;
+}
+
+.pagination .page-item .page-link {
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+}
+
+    .pagination .active .page-link {
+        background-color: #233760;
+        border-color: #233760;
+        color: #fff;
+    }
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5); /* Fondo oscuro con transparencia */
+    z-index: 1050; /* Asegura que el overlay esté por debajo del modal */
+}
+
+/* Modal Container */
+.modal-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Centra el modal */
+    background-color: none;
+    padding: 20px;
+    min-width: 1000px;
+    max-height: 700px;
+    border-radius: 8px;
+    z-index: 1060; /* Asegura que el modal esté encima del overlay */
+}
+
+    /* Botón de Cerrar */
+    .modal-container .btn-danger {
+        background-color: #233760 !important;   /* morado Bootstrap-ish */
+        border-color:     #233760 !important;
+        color: #fff !important;
+        margin-top: 15px;
+    }
+
+.admin-user-title{
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    font-weight: bold;
+    font-size: 2rem;
+}
+
+/* ─── Nuevo modal específico de AdminReservas ─── */
+.modal-container .confirm-box{
+    background-color:#E8EDF3;
+    max-width:400px;
+    margin:auto;
+    border:1px solid #ccc;
+}
+
+/* Botón CANCELAR (gris/morado claro) */
+.btn-cancelar{
+    background:#6c757d;           /* gris bootstrap */
+    color:#fff;
+    border:none;
+    padding:.45rem 1.1rem;
+    border-radius:.375rem;
+}
+.btn-cancelar:hover{
+    background:#5c636a;
+}
+
+/* Botón CONFIRMAR (morado corporativo) */
+.btn-confirmar{
+    background:#233760;           /* morado corporativo */
+    border:none;
+    color:#fff;
+    padding:.45rem 1.1rem;
+    border-radius:.375rem;
+}
+.btn-confirmar:hover{
+    background:#3D5481;
+}
+.btn-confirmar:active{
+    transform:translateY(2px);
+    box-shadow:inset 0 2px 4px rgba(0,0,0,.2);
+}

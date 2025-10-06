@@ -1,0 +1,250 @@
+@page "/perfil/reservas"
+@using gabrieland.Client.Models
+@using gabrieland.Client.Utilities
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IToastService toast
+
+<h3 class="fw-bold text-center mb-4">Perfil de Usuario – Reservas</h3>
+<div class="perfil-container">
+    <aside class="sidebar">
+        <nav>
+            <ul>
+                <li><a href="/perfil/datos">Datos de Usuario</a></li>
+                <li class="active"><a href="/perfil/reservas">Reservas</a></li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="content">
+        @if (reservas is null)
+{
+    <p>Cargando reservas…</p>
+    @if (errorMessage is not null)
+    {
+        <p class="text-danger">@errorMessage</p>
+    }
+}
+else if (!reservas.Any())
+{
+    <p class="text-center text-muted">No tienes reservas registradas.</p>
+}
+else
+{
+    <div class="px-3 px-md-5 my-4">
+
+        <!-- tabla -->
+        <div class="table-responsive">
+            <table class="table table-hover shadow-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Sala</th>
+                        <th>Fecha</th>
+                        <th>Inicio</th>
+                        <th>Fin</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                @foreach (var r in Paginado())
+                {
+                    <tr>
+                        <td>@NombreSala(r.SAL_Id_Sala)</td>
+                        <td>@r.Fecha.ToString("dd/MM/yyyy")</td>
+                        <td>@r.Fecha.Date.AddHours(r.Hora_Inicio).ToString("HH:mm")</td>
+                        <td>@r.Fecha.Date.AddHours(r.Hora_Final).ToString("HH:mm")</td>
+                        <td>@r.Estado_Reserva.GetDisplay()</td>
+
+                        <td class="text-end">
+                            @if (r.Estado_Reserva == EstadoReserva.Confirmada)
+                            {
+                                <!-- Pagar -->
+                                <button class="btn btn-morado btn-sm me-1"
+                                        title="Ir a pago"
+                                        @onclick="() => AbrirModal(r, true)">
+                                    Pagar
+                                </button>
+
+                                <!-- Cancelar -->
+                                <button class="btn btn-morado btn-sm me-1"
+                                        title="Cancelar reserva"
+                                        @onclick="() => AbrirModal(r, false)">
+                                    Cancelar
+                                </button>
+                            }
+                            else if (r.Estado_Reserva == EstadoReserva.Pendiente)
+                            {
+                                <!-- Cancelar (solo) -->
+                                <button class="btn btn-morado btn-sm me-1"
+                                        title="Cancelar reserva"
+                                        @onclick="() => AbrirModal(r, false)">
+                                    Cancelar
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- paginación -->
+        <nav aria-label="Paginación">
+            <ul class="pagination flex-wrap justify-content-center justify-content-md-end">
+                <li class="page-item">
+                    <button class="page-link" @onclick="() => CambiarPagina(paginaActual-1)"
+                            disabled="@(paginaActual==1)">Ant</button>
+                </li>
+                @for (int p=1; p<=totalPaginas; p++)
+                {
+                    <li class="page-item @(paginaActual==p?"active":"")">
+                        <button class="page-link" @onclick="() => CambiarPagina(p)">@p</button>
+                    </li>
+                }
+                <li class="page-item">
+                    <button class="page-link" @onclick="() => CambiarPagina(paginaActual+1)"
+                            disabled="@(paginaActual==totalPaginas)">Sig</button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}
+
+@* ─────────── Modal reutilizable ─────────── *@
+@if (showModal && reservaSel is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <div class="confirm-box p-4 rounded shadow">
+                <h5 class="mb-3">
+                    @(pagarSel ? "Confirmar pago" : "Cancelar reserva")
+                </h5>
+
+                <p class="mb-0" style="white-space:pre-line">
+                    @if (pagarSel)
+                    {
+                        @($"Reserva #{reservaSel.Id_Reserva} — Sala {NombreSala(reservaSel.SAL_Id_Sala)}\n¿Deseas continuar al pago?")
+                    }
+                    else
+                    {
+                        @($"¿Seguro que deseas cancelar la reserva de la sala '{NombreSala(reservaSel.SAL_Id_Sala)}' el {reservaSel.Fecha:dd/MM/yyyy}?")
+                    }
+                </p>
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button class="btn btn-cancelar" @onclick="CerrarModal">Cancelar</button>
+                    <button class="btn btn-confirmar" @onclick="ConfirmarAccion">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+    </main>
+</div>
+
+@code {
+    /* ---------------- Estado ---------------- */
+    private List<Reserva>? reservas;
+    private readonly Dictionary<int, string> salaMap = new();
+    private string? errorMessage;
+
+    int paginaActual = 1;
+    const int pageSize = 8;
+    private int totalPaginas => (int)Math.Ceiling((double)(reservas?.Count ?? 0) / pageSize);
+
+    bool showModal;      // ¿mostrar modal?
+    bool pagarSel;       // true = ir a pago | false = cancelar
+    Reserva? reservaSel; // reserva seleccionada
+
+    /* ---------------- Lifecycle ---------------- */
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity?.IsAuthenticated ?? false)
+            {
+                int idUsuario = int.Parse(user.FindFirst("sub")?.Value ?? "0");
+                reservas = await Http.GetFromJsonAsync<List<Reserva>>($"/Reservas/usuario/{idUsuario}");
+
+                var salas = await Http.GetFromJsonAsync<List<Salas>>("/Salas");
+                if (salas is not null)
+                    foreach (var s in salas) salaMap[s.IdSala] = s.Nombre;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al cargar datos: {ex.Message}";
+        }
+    }
+
+    /* ---------------- Helpers ---------------- */
+    private string NombreSala(int id) => salaMap.TryGetValue(id, out var n) ? n : $"Sala {id}";
+
+    IEnumerable<Reserva> Paginado() => reservas is null
+        ? Enumerable.Empty<Reserva>()
+        : reservas.Skip((paginaActual - 1) * pageSize).Take(pageSize);
+
+    void CambiarPagina(int p)
+    {
+        if (p >= 1 && p <= totalPaginas) paginaActual = p;
+    }
+
+    /* ---------------- Modal ---------------- */
+    void AbrirModal(Reserva r, bool esPago)
+    {
+        reservaSel = r;
+        pagarSel   = esPago;
+        showModal  = true;
+    }
+
+    void CerrarModal()
+    {
+        showModal  = false;
+        reservaSel = null;
+    }
+
+    async Task ConfirmarAccion()
+    {
+        if (reservaSel is null)
+        {
+            CerrarModal();
+            return;
+        }
+
+        if (pagarSel)
+        {
+            // Navega a la página de pago
+            showModal = false;
+            Navigation.NavigateTo($"/pago/{reservaSel.Id_Reserva}");
+            reservaSel = null;
+        }
+        else
+        {
+            // Cancela la reserva
+            var resp = await Http.PutAsync($"/Reservas/{reservaSel.Id_Reserva}/cancelar", null);
+            if (!resp.IsSuccessStatusCode)
+            {
+                toast.ShowError("No se pudo cancelar la reserva.");
+            }
+            else
+            {
+                reservaSel.Estado_Reserva = EstadoReserva.Cancelada;
+                toast.ShowInfo("Reserva cancelada.");
+            }
+            CerrarModal();
+            StateHasChanged();
+        }
+    }
+}

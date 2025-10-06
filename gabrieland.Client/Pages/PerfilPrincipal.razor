@@ -1,0 +1,218 @@
+@page "/perfil/datos"
+@using gabrieland.Client.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.IdentityModel.Tokens.Jwt
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject IToastService toastService
+
+<h2>Perfil De Usuario</h2>
+<hr class="divider" />
+
+<div class="perfil-container">
+    <aside class="sidebar">
+        <nav>
+            <ul>
+                <li class="active"><a href="#">Datos de Usuario</a></li>
+                <li><a href="/perfil/reservas">Reservas</a></li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="content">
+        @if (isLoading)
+        {
+            <div>Cargando datos del usuario...</div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="error-message">@errorMessage</div>
+        }
+        else
+        {
+            <div class="perfil-formulario">
+                <div class="fila">
+                    <div class="campo">
+                        <label>Nombre</label>
+                        <input type="text" @bind="usuario.nombre" placeholder="Nombre"
+                            class="@(nombreInvalido ? "input-error" : "")" />
+                        @if (nombreInvalido)
+                        {
+                            <div class="error-text">El nombre es requerido</div>
+                        }
+                    </div>
+                    <div class="campo">
+                        <label>Apellido</label>
+                        <input type="text" @bind="usuario.apellido" placeholder="Apellido"
+                            class="@(apellidoInvalido ? "input-error" : "")" />
+                        @if (apellidoInvalido)
+                        {
+                            <div class="error-text">El apellido es requerido</div>
+                        }
+                    </div>
+                </div>
+
+                <div class="fila">
+                    <div class="campo">
+                        <label>Número de teléfono</label>
+                        <input type="text" @bind="usuario.num_telefonico" placeholder="NumTelefonico"
+                            class="@(numTelefonicoInvalido ? "input-error" : "")" />
+                        @if (numTelefonicoInvalido)
+                        {
+                            <div class="error-text">El número telefónico es requerido</div>
+                        }
+                    </div>
+                    <div class="campo">
+                        <label>ID Usuario</label>
+                        <input type="text" @bind="usuario.UserName" placeholder="ID Usuario"
+                            class="@(userNameInvalido ? "input-error" : "")" />
+                        @if (userNameInvalido)
+                        {
+                            <div class="error-text">El nombre de usuario es requerido</div>
+                        }
+                    </div>
+                </div>
+
+                <div class="fila">
+                    <div class="campo">
+                        <label>Fecha de nacimiento</label>
+                        <input type="date" @bind="usuario.fecha_nacimiento" placeholder="FechaNacimiento"
+                            class="@(fechaNacimientoInvalida ? "input-error" : "")" />
+                        @if (fechaNacimientoInvalida)
+                        {
+                            <div class="error-text">Formato de fecha inválido</div>
+                        }
+                    </div>
+                </div>
+
+                <div class="fila">
+                    <div class="campo" style="width: 100%;">
+                        <label>Correo electrónico</label>
+                        <input type="text" @bind="usuario.correo" placeholder="Correo"
+                            class="@(correoInvalido ? "input-error" : "")" />
+                        @if (correoInvalido)
+                        {
+                            <div class="error-text">Formato de correo inválido</div>
+                        }
+                    </div>
+                </div>
+
+                <div class="fila centrado">
+                    <button class="btn-actualizar" @onclick="Saving">Actualizar Datos</button>
+                </div>
+            </div>
+        }
+    </main>
+</div>
+
+@code {
+    private Usuario usuario = new Usuario();
+    private int? userId;
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+
+    private bool nombreInvalido;
+    private bool apellidoInvalido;
+    private bool numTelefonicoInvalido;
+    private bool fechaNacimientoInvalida;
+    private bool userNameInvalido;
+    private bool correoInvalido;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity?.IsAuthenticated ?? false)
+            {
+                var userIdClaim = user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                if (int.TryParse(userIdClaim, out var id))
+                {
+                    userId = id;
+                    await CargarUsuario();
+                }
+                else
+                {
+                    toastService.ShowError("No se pudo identificar al usuario");
+                }
+            }
+            else
+            {
+                toastService.ShowError("Usuario no autenticado");
+            }
+        }
+        catch (Exception ex)
+        {
+            toastService.ShowError($"Error al cargar datos: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CargarUsuario()
+    {
+        if (!userId.HasValue) return;
+
+        try
+        {
+            var response = await Http.GetAsync($"Usuarios/{userId.Value}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                usuario = await response.Content.ReadFromJsonAsync<Usuario>();
+            }
+            else
+            {
+                toastService.ShowError("No se pudo cargar la información del usuario");
+            }
+        }
+        catch (Exception ex)
+        {
+            toastService.ShowError($"Error al cargar usuario: {ex.Message}");
+        }
+    }
+
+    private async Task Saving()
+    {
+        // Validaciones
+        nombreInvalido = string.IsNullOrWhiteSpace(usuario.nombre);
+        apellidoInvalido = string.IsNullOrWhiteSpace(usuario.apellido);
+        numTelefonicoInvalido = string.IsNullOrWhiteSpace(usuario.num_telefonico);
+        fechaNacimientoInvalida = usuario.fecha_nacimiento == default ||
+        usuario.fecha_nacimiento > DateTime.Today ||
+        usuario.fecha_nacimiento < DateTime.Today.AddYears(-120);
+        userNameInvalido = string.IsNullOrWhiteSpace(usuario.UserName);
+        correoInvalido = string.IsNullOrWhiteSpace(usuario.correo) || !usuario.correo.Contains("@");
+
+        if (nombreInvalido || apellidoInvalido || numTelefonicoInvalido ||
+        fechaNacimientoInvalida || userNameInvalido || correoInvalido)
+        {
+            toastService.ShowError("Por favor complete todos los campos correctamente");
+            return;
+        }
+
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"Usuarios/{usuario.ID_Usuario}", usuario);
+
+            if (response.IsSuccessStatusCode)
+            {
+                toastService.ShowSuccess("Datos actualizados correctamente");
+                await CargarUsuario(); // Recargar datos después de actualizar
+            }
+            else
+            {
+                toastService.ShowError("Error al actualizar los datos del usuario");
+            }
+        }
+        catch (Exception ex)
+        {
+            toastService.ShowError($"Error al guardar: {ex.Message}");
+        }
+    }
+}

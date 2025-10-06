@@ -1,0 +1,175 @@
+@page "/pago-efectivo/{idReserva:int}"
+@using System.Security.Claims
+@using gabrieland.Client.Models
+@inject HttpClient Http
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IToastService toast
+
+<div class="pago-exitoso-wrapper">
+
+    <h3 class="text-success mb-4">
+        <i class="bi bi-check-circle-fill me-2"></i>¡Pago exitoso!
+    </h3>
+
+    @if (cargando)
+    {
+        <div class="loading-block">
+             <div class="spinner-border text-success" role="status"></div>
+            <span>Procesando reserva…</span>
+        </div>
+    }
+    else if (exito)
+    {
+         <div class="card border-success shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="card-title">¡Reserva registrada, @nombre!</h5>
+
+                <p class="card-text">
+                    Tu reserva de <strong>@sala</strong> para el
+                    <strong>@reserva?.Fecha.ToString("dd/MM/yyyy HH:mm")</strong> quedó <strong>en curso</strong>.
+                </p>
+
+                <ul class="detalle-servicios">
+                    <li>Alquiler Sala – ₡ @precioSala</li>
+                </ul>
+
+                @if (servicios?.Any() ?? false)
+                {
+                    <p class="fw-bold mb-1">Servicios contratados</p>
+                    <ul class="detalle-servicios mb-2">
+                        @foreach (var sv in servicios)
+                        {
+                            <li>@sv.Nombre – ₡ @sv.PrecioTotal</li>
+                        }
+                    </ul>
+                }
+
+                <p class="h5 total-pagado">
+                    Monto a cancelar: <span class="text-warning">₡ @total</span>
+                </p>
+
+                <hr />
+                <p class="mb-0">
+                    <strong>Instrucciones:</strong><br />
+                    Presenta esta confirmación y cancela el monto en la recepción antes de usar la sala.
+                </p>
+                <p class="text-muted">
+                    También enviamos un correo a <strong>@correo</strong>.
+                </p>
+            </div>
+        </div>
+
+        <button class="btn btn-volver"
+                @onclick='() => Nav.NavigateTo("/perfil/reservas")'>
+            Ver mis reservas
+        </button>
+    }
+    else
+    {
+        <div class="alert alert-danger">
+            Ocurrió un error al procesar tu reserva. Inténtalo más tarde.
+        </div>
+    }
+
+</div>
+
+@code {
+    /* --- parámetros y modelos --- */
+    [Parameter] public int idReserva { get; set; }
+    private Reserva? reserva;
+    private List<ReservaService>? servicios;
+    private string nombre = "";
+    private string correo = "";
+    private string sala   = "";
+    private decimal total = 0;
+    private decimal precioSala = 0;
+
+    /* --- constantes --- */
+    private const int TIPO_PAGO_EFECTIVO = 22;     
+    /* --- flags --- */
+    private bool cargando = true;
+    private bool exito    = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            /* 0. Parámetro */
+            if (idReserva <= 0)
+                throw new Exception("Parámetro idReserva faltante.");
+
+            /* 1. Usuario */
+            var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+            var u    = auth.User;
+            nombre   = u.FindFirst(ClaimTypes.Name )?.Value ?? "";
+            correo   = u.FindFirst(ClaimTypes.Email)?.Value ?? "";
+
+            /* 2. Reserva */
+            reserva = await Http.GetFromJsonAsync<Reserva>($"/Reservas/{idReserva}")
+                    ?? throw new Exception("Reserva no encontrada");
+
+            /* 3. Sala */
+            var salaDto = await Http.GetFromJsonAsync<Salas>($"/Salas/{reserva.SAL_Id_Sala}");
+            sala       = salaDto?.Nombre ?? $"Sala {reserva.SAL_Id_Sala}";
+            precioSala = (decimal)(salaDto?.Precio ?? 0);
+
+            /* 4. Servicios */
+            servicios = await Http.GetFromJsonAsync<List<ReservaService>>
+                                   ($"/ServiciosReserva/reserva/{idReserva}") ?? new();
+            await EnriquecerServiciosAsync(servicios);
+
+            /* 5. Total */
+            total = precioSala + servicios.Sum(s => (decimal)s.PrecioTotal);
+            
+            var respFactura = await Http.PostAsJsonAsync("Facturas", new
+            {
+                ReservaId  = idReserva,
+                TipoPagoId = TIPO_PAGO_EFECTIVO
+            });
+            if (!respFactura.IsSuccessStatusCode)
+            {
+                // Registras, notificas y SALES sin tocar la reserva
+                Console.Error.WriteLine($"[ERROR] No se pudo generar la factura: {(int)respFactura.StatusCode}");
+                toast.ShowError("No se pudo generar la factura. Inténtalo más tarde.");
+                return;                     // evita que continúe
+            }
+            reserva.Estado_Reserva = EstadoReserva.EnCurso;
+            var respEstado = await Http.PutAsJsonAsync($"/Reservas/{idReserva}", reserva);
+            respEstado.EnsureSuccessStatusCode();
+
+            exito = true;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error pago efectivo: {ex.Message}");
+            exito = false;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    /* helper de nombres de servicios */
+    private async Task EnriquecerServiciosAsync(List<ReservaService> servicios)
+    {
+        var idsPendientes = servicios
+            .Where(s => string.IsNullOrWhiteSpace(s.Nombre))
+            .Select(s => s.SEA_Id_Servicio)
+            .Distinct()
+            .ToList();
+
+        var tareas = idsPendientes.Select(id => Http.GetFromJsonAsync<ServicioAdicional>($"ServiciosAdicionales/{id}"));
+        var resultados = await Task.WhenAll(tareas);
+
+        var mapa = resultados
+            .Where(r => r != null)
+            .ToDictionary(r => r!.ID_Servicios_Adicionales, r => r.nombre);
+
+        foreach (var s in servicios)
+            if (mapa.TryGetValue(s.SEA_Id_Servicio, out var n))
+                s.Nombre = n;
+    }
+}

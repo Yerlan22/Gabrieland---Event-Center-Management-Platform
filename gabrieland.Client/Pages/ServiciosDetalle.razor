@@ -1,0 +1,202 @@
+﻿@page "/servicios/{Id:int}"
+
+@using gabrieland.Client.Models
+@inject HttpClient Http
+@using gabrieland.Client.Components.OfertaSalas
+@inject NavigationManager Navigation
+
+<p class="top-text text-center">@servicio?.nombre</p>
+<hr />
+<h3 class="header-servicio">    
+    <div class="breadcrumb center">
+        <span class="clickable-text" @onclick="VolverAtras">Servicios Disponibles</span>
+        <a class="espace-bet"> > </a>
+        <span>@servicio?.nombre</span>
+    </div>
+</h3>
+
+<div class="servicio-detalle-container">
+    @if (servicio is null)
+    {
+        <p>Cargando servicio...</p>
+    }
+    else
+    {
+        <div class="servicio-info">
+            <h3>Descripción</h3>
+            <p class="servicio-descripcion">@servicio.descripcion</p>
+
+            <div class="servicio-caracteristicas">
+                <div class="caracteristica">
+                    <span class="icon">💲</span>
+                    <span>Costo</span>
+                    <strong>₡@servicio.costo</strong>
+                </div>
+                <div class="caracteristica">
+                    <span class="icon">✔️</span>
+                    <span>Activo</span>
+                    <strong>@(servicio.Activo == "Y" ? "Sí" : "No")</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="servicio-galeria">
+            @if (fotosServicio is not null && fotosServicio.Any())
+            {
+                <div class="servicio-imagen-principal"
+                     @onmouseenter="MostrarControles"
+                     @onmouseleave="OcultarControles">
+                    <img src="@imagenSeleccionada" alt="Imagen principal de @servicio.nombre" style="width: 100%; height: 100%; object-fit: cover;" />
+
+                    @if (mostrarControles)
+                    {
+                        <button class="control-btn prev" @onclick="ImagenAnterior" style="position: absolute; top: 50%; left: 10px; transform: translateY(-50%); font-size: 2rem; background: rgba(0,0,0,0.3); color: white; border: none; cursor: pointer;">‹</button>
+                        <button class="control-btn next" @onclick="ImagenSiguiente" style="position: absolute; top: 50%; right: 10px; transform: translateY(-50%); font-size: 2rem; background: rgba(0,0,0,0.3); color: white; border: none; cursor: pointer;">›</button>
+                        <button class="control-btn play-pause" @onclick="ToggleAutoplay" style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.3); color: white; border: none; cursor: pointer; padding: 0.3rem 0.6rem; font-size: 1.2rem;">
+                            @(autoplay ? "⏸" : "▶")
+                        </button>
+                    }
+                </div>
+
+                <div class="servicio-miniaturas">
+                    @foreach (var foto in fotosServicio)
+                    {
+                        var url = $"http://localhost:5027{foto.foto}";
+                        <img src="@url"
+                            alt="Miniatura"
+                            @onclick="() => CambiarImagen(url)"
+                            class="miniatura @(imagenSeleccionada == url ? "miniatura-activa" : "")" />
+                    }
+                </div>
+            }
+            else if(servicio.TSO_ID_Tipo_Servicio == 1) {
+            <img src="https://st3.depositphotos.com/13349494/31670/i/450/depositphotos_316706074-stock-photo-mixed-fresh-cocktails-glasses-bar.jpg" alt="Imagen de @servicio.nombre" class="sala-imagen" />
+            } else if(servicio.TSO_ID_Tipo_Servicio == 2) {
+            <img src="https://blog.pioneer-mexico.com.mx/hubfs/dj-productor-musical.jpg" alt="Imagen de @servicio.nombre" class="sala-imagen" />
+            } else if(servicio.TSO_ID_Tipo_Servicio == 3) {
+            <img src="https://mlri412iwjbc.i.optimole.com/cb:c8wx~30e01/w:1500/h:1000/q:mauto/f:best/https://www.davidaustin.com/wp-content/uploads/2020/06/floral-table-decorations-with-edith-roses.jpg" alt="Imagen de @servicio.nombre" class="sala-imagen" />
+            } else if(servicio.TSO_ID_Tipo_Servicio == 4) {
+            <img src="https://files.pucp.education/puntoedu/wp-content/uploads/2023/07/10050117/personal-de-seguridad-del-campus-recibio-capacitacion-en-valores-pucp-y-respeto-a-la-diversidad.jpg" alt="Imagen de @servicio.nombre" class="sala-imagen" />
+            } else {
+            <img src="https://www.teletrans.com/wp-content/uploads/2021/03/transporte-privado-de-pasajeros.jpg" alt="Imagen de @servicio.nombre" class="sala-imagen" />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+    private ServicioAdicional? servicio;
+    private List<FotoServicio>? fotosServicio;
+    private string? imagenSeleccionada;
+    private int indiceImagenActual = 0;
+    private bool autoplay = true;
+    private bool mostrarControles = false;
+    private System.Timers.Timer? timer;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            servicio = await GetServicioById(Id);
+            fotosServicio = await GetFotosByServicioId(Id);
+
+            if (fotosServicio is not null && fotosServicio.Any())
+            {
+                indiceImagenActual = 0;
+                imagenSeleccionada = $"http://localhost:5027{fotosServicio[indiceImagenActual].foto}";
+
+                timer = new System.Timers.Timer(7000);
+                timer.Elapsed += (sender, args) =>
+                {
+                    if (autoplay)
+                    {
+                        indiceImagenActual = (indiceImagenActual + 1) % fotosServicio.Count;
+                        imagenSeleccionada = $"http://localhost:5027{fotosServicio[indiceImagenActual].foto}";
+                        InvokeAsync(StateHasChanged);
+                    }
+                };
+                timer.Start();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener servicio: " + ex.Message;
+        }
+    }
+
+    private async Task<ServicioAdicional?> GetServicioById(int id)
+    {
+        try
+        {
+            return await Http.GetFromJsonAsync<ServicioAdicional>($"Servicios/{id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener servicio: " + ex.Message;
+            return null;
+        }
+    }
+
+    private async Task<List<FotoServicio>?> GetFotosByServicioId(int id)
+    {
+        try
+        {
+            return await Http.GetFromJsonAsync<List<FotoServicio>>($"Servicios/Fotos/{id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener fotos: " + ex.Message;
+            return null;
+        }
+    }
+
+    private void CambiarImagen(string url)
+    {
+        imagenSeleccionada = url;
+        indiceImagenActual = fotosServicio!.FindIndex(f => $"http://localhost:5027{f.foto}" == url);
+    }
+
+    private void MostrarControles()
+    {
+        mostrarControles = true;
+    }
+
+    private void OcultarControles()
+    {
+        mostrarControles = false;
+    }
+
+    private void ImagenSiguiente()
+    {
+        if (fotosServicio is null || fotosServicio.Count == 0) return;
+
+        indiceImagenActual = (indiceImagenActual + 1) % fotosServicio.Count;
+        imagenSeleccionada = $"http://localhost:5027{fotosServicio[indiceImagenActual].foto}";
+    }
+
+    private void ImagenAnterior()
+    {
+        if (fotosServicio is null || fotosServicio.Count == 0) return;
+
+        indiceImagenActual = (indiceImagenActual - 1 + fotosServicio.Count) % fotosServicio.Count;
+        imagenSeleccionada = $"http://localhost:5027{fotosServicio[indiceImagenActual].foto}";
+    }
+
+    private void ToggleAutoplay()
+    {
+        autoplay = !autoplay;
+    }
+
+    private void VolverAtras()
+    {
+        Navigation.NavigateTo("/servicios");
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
+}

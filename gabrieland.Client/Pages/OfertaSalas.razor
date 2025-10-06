@@ -1,0 +1,189 @@
+﻿@page "/salas"
+@using gabrieland.Client.Models
+@inject HttpClient Http
+@using gabrieland.Client.Components.OfertaSalas
+
+<div class="px-3 px-md-5 my-4 big-container cont-text"> 
+    <p class="top-text text-center">Salas disponibles </p>
+    <hr />
+    <p class="sub-text text-center">Organizá tu evento ideal en Gabrieland.</p>
+</div>
+
+@if (salas is null)
+{
+    <p>Cargando salas...</p>
+
+    @if (errorMessage != null)
+    {
+        <p class="text-danger">@errorMessage</p>
+    }
+}
+else
+{   
+    <div class="px-3 px-md-5 my-4 big-container">
+        <div class="filters d-flex flex-wrap align-items-center me-4">
+            <p class="order-by mb-0 me-3">Ordenar por:</p>
+
+            <select class="form-select w-auto me-3" @bind="orderByPrice">
+                <option value="">-- Precio --</option>
+                <option value="asc">Precio: Ascendente</option>
+                <option value="desc">Precio: Descendente</option>
+            </select>
+
+            <button class="rounded-3 shadow-sm btn btn-light me-3" @onclick="() => formaLista = true">
+                <img src="/icons/list.png" style="height:20px;width:20px;" />
+            </button>
+            <button class="rounded-3 shadow-sm btn btn-light me-3" @onclick="() => formaLista = false">
+                <img src="/icons/apps.png" style="height:20px;width:20px;" />
+            </button>
+            
+            <div class="ms-auto" style="width: 250px;">
+                <input type="text" class="form-control input-buscar-sala" placeholder="Buscar Sala" @bind="searchTerm" />
+            </div>
+        </div>
+    </div>
+
+    <div class="px-3 px-md-5 my-4 big-container">
+        <div class="table-responsive">
+            <div class="card-grid">
+              @foreach (var sala in GetCurrentPageItems())
+              {   
+                  string foto = GetFotoVista(sala.IdSala);
+                  Console.WriteLine(foto);
+                  <CartaSala Sala="sala" Foto="@foto"/>
+              }
+          </div>
+        </div>
+
+        <nav aria-label="Paginación de usuarios">
+            <ul class="pagination flex-wrap justify-content-center justify-content-md-end">
+                <li class="page-item">
+                    <button class="page-link" @onclick="() => ChangePage(currentPage - 1)"
+                            disabled="@(currentPage == 1)">
+                        Ant
+                    </button>
+                </li>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    var pageNumber = i; // Esto es crucial para capturar el valor correctamente
+                    <li class="page-item @(currentPage == pageNumber ? "active" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(pageNumber)">@pageNumber</button>
+                    </li>
+                }
+                <li class="page-item">
+                    <button class="page-link" @onclick="() => ChangePage(currentPage + 1)"
+                            disabled="@(currentPage == totalPages)">
+                        Sig
+                    </button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}
+
+@code {
+    private List<Salas>? salas;
+    private string searchTerm = "";
+    private string? errorMessage;
+    private int currentPage = 1;
+    private int pageSize = 8;
+    private int totalPages => (int)Math.Ceiling((double)(salas?.Count ?? 0) / pageSize);
+    private List<FotoSala>? fotosTodas;
+    public bool formaLista = false;
+    //Funciones al backend
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            salas = await Http.GetFromJsonAsync<List<Salas>>("Salas");
+            fotosTodas = await Http.GetFromJsonAsync<List<FotoSala>>($"Salas/Fotos/todas");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener salas: " + ex.Message;
+        }
+    }
+
+    private async Task ReactivarSala(int id)
+    {
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Patch, $"Salas/{id}/reactivar");
+            var response = await Http.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = "No se pudo reactivar la sala";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+        }
+    }
+
+    private async Task<Salas?> GetSalaById(int id)
+    {
+        try
+        {
+            return await Http.GetFromJsonAsync<Salas>($"Salas/{id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener sala: " + ex.Message;
+            return null;
+        }
+    }
+
+    private void ChangePage(int newPage)
+    {
+        if (newPage >= 1 && newPage <= totalPages)
+        {
+            currentPage = newPage;
+        }
+    }
+
+    private string orderByPrice = "";
+
+    private IEnumerable<Salas> GetCurrentPageItems()
+    {
+        var query = salas!
+            .Where(s => string.IsNullOrEmpty(searchTerm) || s.Nombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+
+        if (orderByPrice == "asc")
+        {
+            query = query.OrderBy(s => s.Precio); // asumo que la propiedad se llama Precio
+        }
+        else if (orderByPrice == "desc")
+        {
+            query = query.OrderByDescending(s => s.Precio);
+        }
+
+        return query
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize);
+    }
+
+    //Pictures
+    private string GetFotoVista(int id){
+      for (int i = 0; i < fotosTodas.Count; i++){
+        if(fotosTodas[i].SalaId == id){
+          //Console.WriteLine(fotosTodas[i].Foto);
+          return fotosTodas[i].Foto;
+        }
+      }
+      return "";
+    }
+
+    private List<FotoSala>? fotosSala;
+    private async Task GetFotosBySalaId(int id)
+    {
+        try
+        {   
+            fotosSala = await Http.GetFromJsonAsync<List<FotoSala>>($"Salas/Fotos/{id}");   
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener fotos: " + ex.Message;
+        }
+    }
+}

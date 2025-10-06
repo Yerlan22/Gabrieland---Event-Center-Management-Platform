@@ -1,0 +1,162 @@
+﻿@using System.Security.Claims
+@using Microsoft.AspNetCore.Components
+@inject NavigationManager Navigation
+@using gabrieland.Client.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject AuthService AuthService
+
+
+
+<nav class="navbar navbar-expand-lg navbar-dark custom-navbar">
+    <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+            <HomeIcon Width="60px" Height="60px" />
+            <span class="ms-2">Gabrieland</span>
+        </a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <!-- ADMINISTRACIÓN -->
+                @if (UserRole == "Admin")
+                {
+                    <li class="nav-item d-lg-none">
+                        <a class="nav-link" href="/admin">Administración</a>
+                    </li>
+                    <li class="nav-item dropdown d-none d-lg-block">
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button"
+                            data-bs-toggle="dropdown" aria-expanded="false">
+                            Administración
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+                            <li><a class="dropdown-item fw-bold" href="/admin/reservas">Reservas</a></li>
+                            <li>
+                                <hr class="dropdown-divider" />
+                            </li>
+                            <li><a class="dropdown-item" href="/admin/salas">Salas</a></li>
+                            <li><a class="dropdown-item" href="/admin/servicios">Servicios</a></li>
+                            <li><a class="dropdown-item" href="/admin/usuarios">Usuarios</a></li>
+                        </ul>
+                    </li>
+                }
+
+                <!-- SALAS -->
+                <li class="nav-item d-lg-none">
+                    <a class="nav-link" href="/salas">Salas</a>
+                </li>
+                <li class="nav-item dropdown d-none d-lg-block">
+                    <a class="nav-link dropdown-toggle" href="#" id="salasDropdown" role="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        Salas
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="salasDropdown">
+                        <li><a class="dropdown-item fw-bold" href="/salas">Todas las salas</a></li>
+                        <li>
+                            <hr class="dropdown-divider" />
+                        </li>
+                        <li><a class="dropdown-item" href="/salas/nuevas">Nuevas</a></li>
+                    </ul>
+                </li>
+
+                <!-- SERVICIOS -->
+                <li class="nav-item d-lg-none">
+                    <a class="nav-link" href="/servicios">Servicios</a>
+                </li>
+                <li class="nav-item dropdown d-none d-lg-block">
+                    <a class="nav-link dropdown-toggle" href="#" id="serviciosDropdown" role="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">
+                        Servicios
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="serviciosDropdown">
+                        <li><a class="dropdown-item fw-bold" href="/servicios">Todos los servicios</a></li>
+                        <li>
+                            <hr class="dropdown-divider" />
+                        </li>
+                    </ul>
+                </li>
+
+
+                @if (IsAuthenticated)
+                {
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="/perfil/datos">@UserName</NavLink>
+                    </li>
+                }
+            </ul>
+
+            <ul class="navbar-nav ms-auto">
+                @if (!IsAuthenticated)
+                {
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="/register">Crear cuenta</NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="/login">Acceder</NavLink>
+                    </li>
+                }
+                else
+                {
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" @onclick="Logout">Cerrar sesión</a>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+</nav>
+
+@code {
+    private string UserRole = string.Empty;
+    private string UserName = string.Empty;
+    private bool IsAuthenticated = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged += async (task) =>
+        {
+            var authState = await task;
+            var user = authState.User;
+
+            IsAuthenticated = user.Identity?.IsAuthenticated ?? false;
+            UserRole = IsAuthenticated ? user.FindFirst(c => c.Type == ClaimTypes.Role)?.Value ?? string.Empty : string.Empty;
+            UserName = IsAuthenticated ? user.Identity?.Name ?? string.Empty : string.Empty;
+
+            // Asegurar el refresco del componente
+            await InvokeAsync(StateHasChanged);
+        };
+        await LoadUserDataAsync();
+    }
+
+    private async Task LoadUserDataAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        IsAuthenticated = user.Identity?.IsAuthenticated ?? false;
+
+        if (IsAuthenticated)
+        {
+            UserRole = user.FindFirst(c => c.Type == ClaimTypes.Role)?.Value ?? string.Empty;
+            UserName = user.Identity?.Name ?? string.Empty;
+        }
+        else
+        {
+            UserRole = string.Empty;
+            UserName = string.Empty;
+        }
+    }
+
+    private async Task Logout()
+    {
+        if (AuthenticationStateProvider is CustomAuthStateProvider customProvider)
+        {
+            await customProvider.MarkUserAsLoggedOut();
+        }
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

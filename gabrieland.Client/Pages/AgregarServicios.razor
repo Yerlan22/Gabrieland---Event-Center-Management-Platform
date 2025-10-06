@@ -1,0 +1,316 @@
+﻿@using gabrieland.Client.Components.OfertasServicios
+@using gabrieland.Client.Models
+@using gabrieland.Client.Services
+@inject NavigationManager Navigation
+@inject ReservaAppState ReservaAppState
+@page "/addservicios/"
+@inject HttpClient Http
+
+
+  <h3 class="header-sala">    
+    <div class="breadcrumb center">
+        <span class="clickable-text" @onclick="VolverASalasDisponibles">Salas Disponibles</span>
+        <a class="espace-bet"> > </a>
+        <span class="clickable-text" @onclick="VolverASalaElegida">Sala Elegida</span>
+        <a class="espace-bet"> > </a>
+        <span>Añadir Servicios</span>
+    </div>
+  </h3>
+<div class="px-3 px-md-5 my-4" id="serviciosAdicionales">
+  <!-- Title -->
+
+  <div>
+    <h3 class="text-center top-text m-4">Añadir Servicios Adicionales</h3>
+    <hr />
+  </div>
+
+  <div class="container">
+    <div class="row">
+      <div class="col-4 sticky-section">
+        @if (actualServiceId != 0)
+          {   
+              <img src="@actualServiceImage" alt="Vista previa" class="img-fluid rounded" />
+          }
+          else
+          {
+              <div class="p-3 bg-primary text-white text-center">Pasa el cursor sobre una carta</div>
+          }
+          <p class="mt-2">@actualServiceDescription</p>
+      </div>
+
+      <div class="col-8">
+        <!-- Filtering Bar -->
+        <div class="d-flex">
+          <span class="me-3 mb-0 align-self-center fs-6" 
+          style="margin-left: 1.4rem;">Ordenar por:</span>
+
+          <select class="rounded-3 shadow-sm me-3 btn btn-light p-1"@bind="filterPrice" @bind:after="UpdateDisplayedItems">
+            <option value=""> Precio </option>
+            <option value="desc"> Descendente </option>
+            <option value="asc"> Ascendente </option>
+          </select>
+          <select class="rounded-3 shadow-sm me-3 btn btn-light p-1"@bind="filterType" @bind:after="UpdateDisplayedItems">
+            <option value="0"> Tipo </option>
+            @if(ListaTiposServicio != null)
+            {
+              @foreach (var tipo in ListaTiposServicio)
+              {
+              <option value="@tipo.ID_Tipo_Servicio"> @tipo.nombre </option>
+              }
+            }
+          </select>
+          <div class="ms-auto" style="width: 200px; margin-right: 1.5rem;">
+            <input type="text" class="form-control input-buscar-sala" 
+              placeholder="Buscar servicio" @bind="searchTerm" 
+              @bind:after="UpdateDisplayedItems" />
+          </div>
+        </div>
+        <!-- Service list -->
+        <div class="d-flex justify-content-between flex-wrap py-3">
+          @if (ListaServicioRender != null)
+          {
+            @foreach (var servicio in ListaServicioRender)
+            {
+              <ServicesCardBar 
+                Servicio="servicio" 
+                AddService="AddReservedService"
+                OnMouseEnter="(id) => actualServiceId = id"/>
+            }
+          }
+          else
+          {
+            <h1>Cargando contenido</h1>
+            <div class="spinner-border"></div>
+          }
+        </div>
+
+        <!-- Paginacion responsiva -->
+        <div class="me-5">
+          <ul class="pagination justify-content-end">
+            <li class="page-item">
+              <button class="page-link" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                Anterior
+              </button>
+            </li>
+            @for (int i = 1; i <= TotalPages; i++)
+            {
+              var pageNumber = i;
+              <li class="page-item @(pageNumber == currentPage ? "active" : "")">
+                <button class="page-link" @onclick="@(() => GoToPage(pageNumber))">
+                  @pageNumber
+                </button>
+              </li>
+            }
+            <li class="page-item">
+              <button class="page-link" @onclick="NextPage" disabled="@(currentPage == TotalPages)">
+                Siguiente
+              </button>
+            </li>
+          </ul>
+          <p class="text-end me-3"><small>Página @currentPage de @TotalPages</small></p>
+        </div>
+        <!-- Barra para esconder -->
+        <div class="barra-servicios d-flex justify-content-between align-items-center mt-4 mb-2" style="cursor: pointer;" @onclick="() => mostrarServiciosAgregados = !mostrarServiciosAgregados">
+            <h5 class="mb-0">Servicios Agregados</h5>
+            <i class="bi @IconoFlecha fs-5"></i>
+        </div>
+        @if (mostrarServiciosAgregados)
+        {
+            <div class="type-3">
+                @if (ReservedServices != null)
+                {
+                    @foreach (var servicio in ReservedServices)
+                    {
+                        <ServicesReservedCardBar 
+                            ServicioR="servicio" 
+                            RemoveService="RemoveAddedService"/>
+                    }
+                }
+                else
+                {
+                    <h1>Cargando contenido</h1>
+                    <div class="spinner-border"></div>
+                }
+            </div>
+        }
+      </div>
+    </div>
+  </div>
+  <button class="btn-azul ms-auto d-block" @onclick="GoToQuotePage">
+      Proceder con la reserva</button>
+</div>
+
+@code {
+  [Parameter]
+  public string? filtro { get; set; }
+  public string filterPrice { get; set; } = "";
+  public int filterType { get; set; } = 0;
+  public float filtro_precio { get; set; } = 0.0F;
+  public bool Lista = false;
+  private string searchTerm = "";
+  private int PageSize = 5;
+  private int currentPage = 1;
+  private int TotalPages = 0;
+  private Reserva? actualReservation;
+  List<TiposServicios>? ListaTiposServicio;
+  List<ServicioAdicional>? ListaServicio;
+  List<ServicioAdicional>? ListaServicioRender;
+  List<ReservaService> ReservedServices = new();
+  List<FotoServicio>? ServicesPictures;
+  private bool mostrarServiciosAgregados = true;
+  private string IconoFlecha => mostrarServiciosAgregados ? "bi-chevron-up" : "bi-chevron-down";
+   
+  private void UpdateReserva()
+  {
+    ReservaAppState.ReservedServicesList = ReservedServices;
+  }
+  //Travels to
+  private void GoToQuotePage()
+  { 
+    UpdateReserva();
+    Navigation.NavigateTo("/quoteReservation");
+  }
+  private void VolverASalasDisponibles()
+  {
+    Navigation.NavigateTo("/salas");
+  }
+
+  private void VolverASalaElegida()
+  {
+    Navigation.NavigateTo("/salas/"+ actualReservation.SAL_Id_Sala);
+  }
+  protected override async Task OnInitializedAsync()
+  {
+    ListaTiposServicio = await Http.GetFromJsonAsync<List<TiposServicios>>("TiposServicios");
+    ListaServicio = await Http.GetFromJsonAsync<List<ServicioAdicional>>("ServiciosAdicionales");
+    actualReservation = ReservaAppState.ReservaActual;
+    ServicesPictures = await Http.GetFromJsonAsync<List<FotoServicio>>($"Servicios/Fotos/todasservicios");
+
+    if(ReservaAppState.ReservedServicesList != null)
+    {
+      ReservedServices = ReservaAppState.ReservedServicesList;
+    }
+
+    if (ListaServicio is not null && ListaServicio.Any())
+    {
+      TotalPages = (int)Math.Ceiling((double)ListaServicio.Count / PageSize);
+      currentPage = 1; // Reinicia la página por si acaso
+      UpdateDisplayedItems();
+    }
+  }
+
+  private void GoToPage(int page)
+  {
+    if (page >= 1 && page <= TotalPages)
+    {
+      currentPage = page;
+      UpdateDisplayedItems();
+    }
+  }
+  private void PreviousPage()
+  {
+    if (currentPage > 1)
+    {
+      currentPage--;
+      UpdateDisplayedItems();
+    }
+  }
+  private void NextPage()
+  {
+    if (currentPage < TotalPages)
+    {
+      currentPage++;
+      UpdateDisplayedItems();
+    }
+  }
+  private void UpdateDisplayedItems()
+  {
+    if (ListaServicio == null)
+    {
+        ListaServicioRender = new List<ServicioAdicional>();
+        return;
+    }
+
+    var query = ListaServicio
+        .Where(s => string.IsNullOrEmpty(searchTerm) || s.nombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+
+    if(filterType != 0){
+      query = query.Where(s => s.TSO_ID_Tipo_Servicio == filterType);
+    }
+
+    if (filterPrice == "asc")
+        query = query.OrderBy(s => s.costo);
+    else if (filterPrice == "desc")
+        query = query.OrderByDescending(s => s.costo);
+
+    TotalPages = (int)Math.Ceiling((double)query.Count() / PageSize);
+    currentPage = Math.Min(currentPage, TotalPages == 0 ? 1 : TotalPages);
+
+    ListaServicioRender = query
+        .Skip((currentPage - 1) * PageSize)
+        .Take(PageSize)
+        .ToList();
+
+    actualServiceId = 0;
+  }
+
+  private void AddReservedService(ReservaService reservedService){
+    if(ReservedServices != null){
+      for(int i = 0; i < ReservedServices.Count; i++){
+        if(ReservedServices[i].SEA_Id_Servicio == reservedService.SEA_Id_Servicio){
+          ReservedServices[i] = reservedService;
+          return;
+        }
+      }
+      ReservedServices.Add(reservedService);
+    }
+  }
+
+  private int _actualServiceId;
+  private int actualServiceId
+  {
+      get => _actualServiceId;
+      set
+      {
+          if (_actualServiceId != value)
+          {
+              _actualServiceId = value;
+              ActualServiceData(); // <--- Esto actualiza todo automáticamente
+          }
+      }
+  }
+  private string actualServiceDescription = "Lorem Ipsum";
+  private string actualServiceImage = "https://hips.hearstapps.com/hmg-prod/images/costillas-con-vino-tinto-1583163561.jpg?crop=1xw:1xh;center,top&resize=980:*";
+  private void ActualServiceData(){
+    if(ServicesPictures != null){
+      for(int i = 0; i < ServicesPictures.Count; i++){
+        if(ServicesPictures[i].SAL_ID_Servicio == actualServiceId){
+          actualServiceImage = $"http://localhost:5027{ServicesPictures[i].foto}";
+          break;
+        }
+      }
+    }
+
+    if(ListaServicio != null){
+      for(int i = 0; i < ListaServicio.Count; i++){
+        Console.WriteLine($"Fecha no disponible: idk something: {ListaServicio[i].ID_Servicios_Adicionales}");
+        if(ListaServicio[i].ID_Servicios_Adicionales == actualServiceId){
+          actualServiceDescription = ListaServicio[i].descripcion;
+          Console.WriteLine(actualServiceDescription);
+          break;
+        }
+      }
+    }
+  }
+
+  private void RemoveAddedService(int ReservedServiceId){
+    if(ReservedServices != null){
+      for(int i = 0; i < ReservedServices.Count; i++){
+        if(ReservedServices[i].SEA_Id_Servicio == ReservedServiceId){
+          ReservedServices.RemoveAt(i);
+          break;
+        }
+      }
+    }
+  }
+}

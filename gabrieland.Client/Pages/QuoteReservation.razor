@@ -1,0 +1,300 @@
+﻿@page "/quoteReservation"
+@using gabrieland.Client.Components.OfertasServicios
+@using gabrieland.Client.Models
+@using gabrieland.Client.Services
+@inject NavigationManager Navigation
+@inject ReservaAppState ReservaAppState
+@inject HttpClient Http
+@inject IToastService toastService
+
+<h3 class="header-sala">    
+  <div class="breadcrumb center">
+      <span class="clickable-text" @onclick="VolverASalasDisponibles">Salas Disponibles</span>
+      <a class="espace-bet"> > </a>
+      <span class="clickable-text" @onclick="VolverASalaElegida">Sala Elegida</span>
+      <a class="espace-bet"> > </a>
+      <span class="clickable-text" @onclick="VolverAServicios">Agregar Servicios</span>
+      <a class="espace-bet"> > </a>
+      <span>Cotización</span>
+  </div>
+</h3>
+
+<div class="px-3 px-md-5 my-4" id="serviciosAdicionales">
+  <!-- Title -->
+  <div>
+    <h3 class="text-center top-text m-4">Cotización de la Reserva</h3>
+    <hr />
+  </div>
+
+  <div class="container">
+    <div class="row">
+      <div class="col-8">
+        <div class="barra-servicios d-flex justify-content-between align-items-center mt-4 mb-2" style="cursor: pointer;" @onclick="() => mostrarSalaAgregada = !mostrarSalaAgregada">
+            <h5 class="mb-0">Sala en Reserva</h5>
+            <i class="bi @IconoFlecha2 fs-5"></i>
+        </div>
+        @if (mostrarSalaAgregada && salaReservada is not null)
+        {
+          <div class="card mt-3">
+            <div class="card-body">
+                <h5 class="card-title">@salaReservada.Nombre</h5>
+                <p class="card-text">
+                    <strong>Fecha:</strong> @ReservaAppState.ReservaActual.Fecha.ToString("dddd dd 'de' MMMM, yyyy")<br />
+                    <strong>Hora:</strong> @ReservaAppState.ReservaActual.Hora_Inicio:00 a @ReservaAppState.ReservaActual.Hora_Final:00<br />
+                    <strong>Duración:</strong> @ReservaAppState.ReservaActual.Duracion horas<br />
+                    <strong>Capacidad:</strong> @salaReservada.Capacidad personas<br />
+                    <strong>Precio:</strong> ₡@salaReservada.Precio<br />
+                    <strong>Descripción:</strong> @salaReservada.Descripcion
+                </p>
+            </div>
+          </div>
+        }
+
+        <div class="barra-servicios d-flex justify-content-between align-items-center mt-4 mb-2" style="cursor: pointer;" @onclick="() => mostrarServiciosAgregados = !mostrarServiciosAgregados">
+            <h5 class="mb-0">Servicios Agregados</h5>
+            <i class="bi @IconoFlecha fs-5"></i>
+        </div>
+        @if (mostrarServiciosAgregados)
+        {
+            <div class="type-3">
+                @if (reservedServices != null)
+                {
+                    @foreach (var servicio in reservedServices)
+                    {
+                        <ServicesReservedCardBar 
+                            ServicioR="servicio" 
+                            RemoveService="RemoveAddedService"/>
+                    }
+                }
+                else
+                {
+                    <h1>Cargando contenido</h1>
+                    <div class="spinner-border"></div>
+                }
+            </div>
+        }
+      </div>
+
+      <div class="col-4 sticky-section">
+        <!-- Barra para esconder -->
+        
+      </div>
+    </div>
+  </div>
+  <button class="btn-azul ms-auto d-block" @onclick="SendReservation">
+      Solicitar Reserva
+  </button>
+</div>
+
+@code {
+  List<ReservaService> reservedServices = new();
+  private string? errorMessage;
+  private Reserva? actualReservation;
+  private bool mostrarServiciosAgregados = true;
+  private string IconoFlecha2 => mostrarSalaAgregada ? "bi-chevron-up" : "bi-chevron-down";
+  private bool mostrarSalaAgregada = true;
+  private string IconoFlecha => mostrarServiciosAgregados ? "bi-chevron-up" : "bi-chevron-down";
+  private Salas? salaReservada;
+  protected override async Task OnInitializedAsync()
+  {
+    if (ReservaAppState.ReservaActual is not null)
+    {
+      salaReservada = await GetSalaById(ReservaAppState.ReservaActual.SAL_Id_Sala);
+    }
+
+    if(ReservaAppState.ReservedServicesList != null){
+      reservedServices = ReservaAppState.ReservedServicesList;
+    }
+    UpdateReservationLocal();
+  }
+
+  private void RemoveAddedService(int ReservedServiceId){
+    if(reservedServices != null){
+      for(int i = 0; i < reservedServices.Count; i++){
+        if(reservedServices[i].SEA_Id_Servicio == ReservedServiceId){
+          reservedServices.RemoveAt(i);
+          break;
+        }
+      }
+    }
+  }
+
+  private void UpdateReservationServicesST()
+  {
+    ReservaAppState.ReservedServicesList = reservedServices;
+  }
+  private void UpdateReservationST()
+  {
+    ReservaAppState.ReservaActual = actualReservation;
+  }
+
+  private void UpdateReservationServicesLocal()
+  {
+    reservedServices = ReservaAppState.ReservedServicesList;
+  }
+
+  private void UpdateReservationLocal()
+  {
+    actualReservation = ReservaAppState.ReservaActual;
+  }
+  private void UpdateIdFromServicesReserved(){
+    if(reservedServices != null){
+      for(int i = 0; i < reservedServices.Count; i++){
+        reservedServices[i].RES_Id_Reserva = actualReservation.Id_Reserva;
+      }
+    }
+  }
+
+  //Travel To
+  private async Task SendReservation()
+  { 
+    //Crear la reserva en la db
+    await CreateReservation(actualReservation);
+    //Actualizar reserva ST
+    UpdateReservationST();
+    //Actualizar los id de servicios locales
+    UpdateIdFromServicesReserved();
+    //Actualizar servicios ST
+    UpdateReservationServicesST();
+    //Crear los servicios reservados en la db
+    if(reservedServices != null && reservedServices.Count != 0)
+    {
+      for(int i = 0; i < reservedServices.Count; i++)
+      {
+        await CreateServicioReserva(reservedServices[i]);
+      }
+    }
+    Navigation.NavigateTo("/");
+    ReservaAppState.CleanGlobalReservation();
+  }
+
+    private void VolverASalasDisponibles()
+  {
+    Navigation.NavigateTo("/salas");
+  }
+
+  private void VolverASalaElegida()
+  {
+    Navigation.NavigateTo("/salas/"+ actualReservation.SAL_Id_Sala);
+  }
+
+    private void VolverAServicios()
+  {
+    Navigation.NavigateTo("/addservicios");
+  }
+
+  //Llamados
+  private async Task CreateReservation(Reserva nuevaReserva)
+  {
+    try
+    { 
+      var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+      Console.WriteLine("→ Enviando POST a /Reservas...");
+      Console.WriteLine(nuevaReserva.Hora_Inicio);
+      Console.WriteLine(nuevaReserva.Hora_Final);
+      Console.WriteLine(nuevaReserva.Duracion);
+      Console.WriteLine(nuevaReserva.Estado_Reserva);
+      Console.WriteLine(nuevaReserva.Fecha);
+      Console.WriteLine(nuevaReserva.SAL_Id_Sala);
+      Console.WriteLine(nuevaReserva.USU_Id_Usuario);
+
+      var response = await Http.PostAsJsonAsync("Reservas", nuevaReserva);
+      Console.WriteLine($"→ Status code: {response.StatusCode}");
+      if (response.IsSuccessStatusCode)
+      { 
+        Console.WriteLine("→ Leyendo contenido JSON de la respuesta...");
+        var reservaCreada = await response.Content.ReadFromJsonAsync<Reserva>();
+        if (reservaCreada is not null)
+        { 
+          Console.WriteLine($"→ Reserva creada con ID: {reservaCreada.Id_Reserva}");
+          actualReservation.Id_Reserva = reservaCreada.Id_Reserva;
+          ShowToast("addSuccess");
+        }
+        else
+        { 
+          Console.WriteLine("⚠️ La reserva creada es null.");
+          errorMessage = "Error al agregar reserva";
+          ShowToast("addFailed");
+        }
+      }
+      else
+      { 
+        Console.WriteLine("⚠️ La respuesta no fue exitosa.");
+        errorMessage = "Error al crear reserva";
+        ShowToast("addFailed");
+      }
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"❌ Excepción atrapada: {ex.Message}");
+      errorMessage = "Error: " + ex.Message;
+      ShowToast("addFailed");
+    }
+  }
+
+  private async Task CreateServicioReserva(ReservaService nuevoServicio)
+  {
+    try
+    {
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        Console.WriteLine("→ Enviando POST a /ServiciosReserva...");
+        Console.WriteLine($"ReservaID: {nuevoServicio.RES_Id_Reserva}");
+        Console.WriteLine($"ServicioID: {nuevoServicio.SEA_Id_Servicio}");
+        Console.WriteLine($"Cantidad: {nuevoServicio.Cantidad}");
+
+        var response = await Http.PostAsJsonAsync("ServiciosReserva", nuevoServicio, cts.Token);
+        Console.WriteLine($"→ Status code: {response.StatusCode}");
+
+        if (response.IsSuccessStatusCode)
+        {
+            var servicioCreado = await response.Content.ReadFromJsonAsync<ReservaService>();
+            if (servicioCreado is not null)
+            {
+                Console.WriteLine($"→ ServicioReserva creado con ID: {servicioCreado.Id}");
+                nuevoServicio.Id = servicioCreado.Id; // Si querés actualizar el original con su ID
+            }
+            else
+            {
+                Console.WriteLine("⚠️ El servicio creado es null.");
+            }
+        }
+        else
+        {
+            Console.WriteLine("⚠️ La respuesta no fue exitosa.");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Excepción atrapada: {ex.Message}");
+    }
+  }
+
+    private async Task<Salas?> GetSalaById(int id)
+    {
+        try
+        {
+            return await Http.GetFromJsonAsync<Salas>($"Salas/{id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener sala: " + ex.Message;
+            return null;
+        }
+    }
+  private void ShowToast(string happening)
+    {   
+        if (happening == "addSuccess") 
+        {
+            toastService.ShowSuccess("Reserva creada exitosamente!");
+        }
+        else if (happening == "addFailed")
+        {
+            toastService.ShowError("Reserva fallida.");
+        }
+        else
+        {
+            toastService.ShowInfo("Mensaje perdido.");
+        } 
+    }
+
+}

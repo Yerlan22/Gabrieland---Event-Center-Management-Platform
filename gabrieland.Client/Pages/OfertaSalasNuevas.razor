@@ -1,0 +1,70 @@
+@page "/salas/nuevas"
+@using gabrieland.Client.Models
+@inject HttpClient Http
+@using gabrieland.Client.Components.OfertaSalas
+
+<div class="px-3 px-md-5 my-4 big-container cont-text"> 
+    <p class="top-text text-center">Salas más nuevas</p>
+    <hr />
+    <p class="sub-text text-center">Organizá tu evento ideal en Gabrieland.</p>
+</div>
+
+@if (salasTop6 is null)
+{
+    <p>Cargando salas...</p>
+
+    @if (errorMessage != null)
+    {
+        <p class="text-danger">@errorMessage</p>
+    }
+}
+else
+{   
+    <div class="px-3 px-md-5 my-4 big-container">
+        <div class="table-responsive">
+            <div class="card-grid">
+              @foreach (var sala in salasTop6)
+              {   
+                  string foto = GetFotoVista(sala.IdSala);
+                  <CartaSala Sala="sala" Foto="@foto"/>
+              }
+          </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Salas>? salas;
+    private List<Salas>? salasTop6;
+    private string? errorMessage;
+    private List<FotoSala>? fotosTodas;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            salas = await Http.GetFromJsonAsync<List<Salas>>("Salas");
+            fotosTodas = await Http.GetFromJsonAsync<List<FotoSala>>($"Salas/Fotos/todas");
+
+            if (salas != null)
+            {
+                // Ordenar desc por IdSala y tomar solo 6
+                salasTop6 = salas.OrderByDescending(s => s.IdSala)
+                                .Take(6)
+                                .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener salas: " + ex.Message;
+        }
+    }
+
+    private string GetFotoVista(int id)
+    {
+      if (fotosTodas == null) return "";
+
+      var foto = fotosTodas.FirstOrDefault(f => f.SalaId == id);
+      return foto?.Foto ?? "";
+    }
+}

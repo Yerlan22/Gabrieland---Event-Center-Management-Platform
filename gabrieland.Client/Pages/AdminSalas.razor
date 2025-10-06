@@ -1,0 +1,475 @@
+@attribute [Authorize(Roles = "Admin")]
+@page "/admin/salas"
+@using Microsoft.AspNetCore.Authorization
+@using gabrieland.Client.Models
+@inject HttpClient Http
+@using gabrieland.Client.Components.AdminSalas
+@inject IToastService toastService
+
+
+<h3 class="fw-bold admin-salas-title text-center">Administración de Salas</h3>
+<hr>
+
+@if (salas is null)
+{
+    <p>Cargando salas...</p>
+
+    @if (errorMessage != null)
+    {
+        <p class="text-danger">@errorMessage</p>
+    }
+}
+else
+{
+    <div class="px-3 px-md-5 my-4 big-container">
+        <div class="row g-2 mb-3">
+            <div class="col-12 col-md-6">
+                <button class="add-sala-boton" @onclick="@(() => OpenModalNewSala(new Salas()))">
+                    Agregar Sala
+                </button>
+            </div>
+            <!-- ms-auto lo puso en el margen diosmio gracias al cielo -->
+            <div class="col-md-2 ms-auto">
+                <input type="text" class="form-control input-buscar-sala" placeholder="Buscar Sala" @bind="searchTerm" />
+            </div>
+        </div>
+    
+        <div class="table-responsive desktop-mode">
+            <table class="table table-hover shadow-sm">
+                <thead class="this-table">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Capacidad</th>
+                        <th>Costo (/h)</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var sala in GetCurrentPageItems())
+                    {
+                        <SalaCardAdmin Sala="sala" OnEdit="OpenModal" 
+                        OnReview="OpenModalViewSala" 
+                        OnDelete="OpenModalConfirmationDel" />
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Tuve que agregar-usuario estoy y arriba una clase -->
+        <div class="phone-mode" >
+            @foreach (var sala in GetCurrentPageItems())
+            {
+                <SalaCardAdmin Sala="sala" OnEdit="OpenModal" 
+                OnReview="OpenModalViewSala" 
+                OnDelete="OpenModalConfirmationDel" />
+            }
+        </div>
+
+        <!-- Responsive pagination? -->
+        <nav aria-label="Paginación de usuarios">
+            <ul class="pagination flex-wrap justify-content-center justify-content-md-end">
+                <li class="page-item">
+                    <button class="page-link" @onclick="() => ChangePage(currentPage - 1)"
+                            disabled="@(currentPage == 1)">Ant
+                    </button>
+                </li>
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    var pageNumber = i; // Esto es crucial para capturar el valor correctamente
+                    <li class="page-item @(currentPage == pageNumber ? "active" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(pageNumber)">@pageNumber</button>
+                    </li>
+                }
+                <li class="page-item">
+                    <button class="page-link" @onclick="() => ChangePage(currentPage + 1)"
+                            disabled="@(currentPage == totalPages)">Sig
+                    </button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}
+
+@if (showModal && selectedSala is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <SalaModalAdmin Sala="selectedSala" FotosSalas="fotosSala" CloseIt="CloseModal" OnSave="HandleEditSala" UpImage="UploadFotoSala" />
+        </div>
+    </div>
+}
+
+@if (showModalView && selectedSala is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <SalaModalViewAdmin Sala="selectedSala" FotosSalas="fotosSala" CloseIt="CloseModalView"/>
+        </div>
+    </div>
+}
+
+@if (showModalNewSala && newSala is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <SalaModalAdmin Sala="newSala" FotosSalas="fotosSala" CloseIt="CloseModalNewSala" OnSave="HandleNewSala" UpImage="UploadFotoSala" />
+        </div>
+    </div>
+}
+
+@if (showModalConfirmationDel && deletingSalaId != 0)
+{
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <ConfirmationModal EntityId="deletingSalaId" DoCancel="CloseModalConfirnationDel" DoConfirmation="HandleSalaDelete" />
+        </div>
+    </div>
+}
+
+@code {
+    private List<Salas>? salas;
+    private string searchTerm = "";
+    private string? errorMessage;
+    private int currentPage = 1;
+    private int pageSize = 7;
+    private int totalPages => (int)Math.Ceiling((double)(salas?.Count ?? 0) / pageSize);
+
+    //Aqui vamos Modal, Modal no Nodal, para editar
+    private bool showModal = false;
+    private Salas? selectedSala;
+
+    private async Task OpenModal(Salas sala)
+    {
+        if(sala == null){
+            Console.WriteLine("Quedaste :P");
+        }
+        selectedSala = sala;
+        await GetFotosBySalaId(selectedSala?.IdSala ?? 0);
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        selectedSala = null;
+    }
+
+    private async Task HandleEditSala(Salas sala)
+    {
+        await UpdateSala(sala);
+        CloseModal();
+    }
+
+    // Solo visualizar
+    private bool showModalView = false;
+    private async Task OpenModalViewSala(Salas sala)
+    {   
+        if(sala == null){
+            Console.WriteLine("Quedaste :P");
+        }
+        selectedSala = sala;
+        await GetFotosBySalaId(selectedSala?.IdSala ?? 0);
+        showModalView = true;
+    }
+
+    private void CloseModalView()
+    {
+        showModalView = false;
+        selectedSala = null;
+    }
+
+    //Add new sala
+    private bool showModalNewSala = false;
+    private Salas? newSala;
+
+    private void OpenModalNewSala(Salas sala)
+    {
+        newSala = sala;
+        showModalNewSala = true;
+    }
+
+    private void CloseModalNewSala()
+    {
+        showModalNewSala = false;
+        newSala = null;
+    }
+
+    private async Task HandleNewSala(Salas sala)
+    {
+        await CreateSala(sala);
+        CloseModalNewSala();
+    }
+
+    //Delete Sala
+    private bool showModalConfirmationDel = false;
+    private int deletingSalaId = 0;
+
+    private void OpenModalConfirmationDel(int id)
+    {
+        deletingSalaId = id;
+        showModalConfirmationDel = true;
+    }
+
+    private void CloseModalConfirnationDel()
+    {
+        showModalConfirmationDel = false;
+        deletingSalaId = 0;
+    }
+
+    private async Task HandleSalaDelete(int salaId)
+    {
+        await DeleteSala(salaId);
+        CloseModalConfirnationDel();
+    }
+
+    //Funciones al backend
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            salas = await Http.GetFromJsonAsync<List<Salas>>("Salas");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener salas: " + ex.Message;
+        }
+    }
+
+    private async Task CreateSala(Salas nuevaSala)
+    {
+        try
+        {   
+            var response = await Http.PostAsJsonAsync("Salas", nuevaSala);
+            if (response.IsSuccessStatusCode)
+            {   
+                var salaCreada = await response.Content.ReadFromJsonAsync<Salas>();
+                if (salas is not null && salaCreada is not null)
+                {
+                    salas.Add(salaCreada);
+                    ShowToast("addSuccess");
+                }
+                else
+                {
+                    errorMessage = "Error al agregar sala";
+                    ShowToast("addFailed");
+                }
+            }
+            else
+            {
+                //Console.WriteLine(response);
+                errorMessage = "Error al crear sala";
+                ShowToast("addFailed");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("addFailed");
+        }
+    }
+
+    private async Task UpdateSala(Salas sala)
+    {
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"Salas/{sala.IdSala}", sala);
+            ShowToast("updateSuccess");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("updateFailed");
+        }
+    }
+
+    private async Task DeleteSala(int id)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"Salas/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                if (salas is not null)
+                {
+                    salas.RemoveAll(s => s.IdSala == id);
+                    ShowToast("deleteSuccess");
+                }
+                else
+                {
+                    errorMessage = "Lista de salas no disponible para eliminar.";
+                    ShowToast("deleteFailed");
+                }
+            }
+            else
+            {
+                errorMessage = "No se pudo eliminar la sala";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("deleteFailed");
+        }
+    }
+
+    private async Task ReactivarSala(int id)
+    {
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Patch, $"Salas/{id}/reactivar");
+            var response = await Http.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = "No se pudo reactivar la sala";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+        }
+    }
+
+    private async Task<Salas?> GetSalaById(int id)
+    {
+        try
+        {
+            return await Http.GetFromJsonAsync<Salas>($"Salas/{id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener sala: " + ex.Message;
+            return null;
+        }
+    }
+
+    private void ChangePage(int newPage)
+    {
+        if (newPage >= 1 && newPage <= totalPages)
+        {
+            currentPage = newPage;
+        }
+    }
+
+    private IEnumerable<Salas> GetCurrentPageItems()
+    {
+        return salas!
+        .Where(s => string.IsNullOrEmpty(searchTerm) || s.Nombre.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize);
+    }
+
+    //Mesages
+    private void ShowToast(string happening)
+    {   
+        if (happening == "updateSuccess")
+        {
+            toastService.ShowSuccess("Sala editada exitosamente!");
+        }
+        else if (happening == "updateFailed")
+        {
+            toastService.ShowError("Sala no pudo ser editada.");
+        }
+        else if (happening == "addSuccess")
+        {
+            toastService.ShowSuccess("Sala agregada exitosamente!");
+        }
+        else if (happening == "addFailed")
+        {
+            toastService.ShowError("Sala no pudo ser agregada.");
+        }
+        else if (happening == "deleteSuccess")
+        {
+            toastService.ShowSuccess("Sala eliminada exitosamente!");
+        }
+        else if (happening == "deleteFailed")
+        {
+            toastService.ShowError("Sala no pudo ser eliminada.");
+        }
+        else if (happening == "uploadSuccess")
+        {
+            toastService.ShowSuccess("Imagen agregada con éxito.");
+        }
+        else if (happening == "uploadFailed")
+        {
+            toastService.ShowError("Imagen no agregada.");
+        }
+        else
+        {
+            toastService.ShowInfo("Mensaje perdido.");
+        } 
+    }
+
+    //Pictures
+    private List<FotoSala>? fotosSala;
+    
+    private async Task GetFotosBySalaId(int id)
+    {
+        try
+        {   
+            fotosSala = await Http.GetFromJsonAsync<List<FotoSala>>($"Salas/Fotos/{id}");   
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al obtener fotos: " + ex.Message;
+        }
+    }
+
+    private async Task UploadFotoSala((int salaId, IBrowserFile file) data)
+    {
+        try
+        {
+            var content = new MultipartFormDataContent();
+            var streamContent = new StreamContent(data.file.OpenReadStream(long.MaxValue));
+            streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(data.file.ContentType);
+
+            content.Add(streamContent, "file", data.file.Name);
+
+            var response = await Http.PostAsync($"Salas/Fotos/{data.salaId}", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                ShowToast("uploadSuccess");
+            }
+            else
+            {
+                errorMessage = "No se pudo subir la foto";
+                ShowToast("uploadFailed");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error al subir la foto: " + ex.Message;
+            ShowToast("uploadFailed");
+        }
+    }
+
+    private async Task DeleteFoto(int idFoto)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"Salas/{idFoto}");
+            if (response.IsSuccessStatusCode)
+            {
+                if (salas != null)
+                {
+                    salas.RemoveAll(s => s.IdSala == idFoto);
+                    ShowToast("deleteSuccess");
+                }
+                else
+                {
+                    errorMessage = "La lista de salas no está disponible";
+                    ShowToast("deleteFailed");
+                }
+            }
+            else
+            {
+                errorMessage = "No se pudo eliminar la sala";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("deleteFailed");
+        }
+    }
+}

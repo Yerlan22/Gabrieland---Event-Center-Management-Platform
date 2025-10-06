@@ -1,0 +1,215 @@
+@using gabrieland.Client.Components.OfertasServicios
+@using gabrieland.Client.Models
+@page "/servicios/{filtro?}"
+@inject HttpClient Http
+
+<div class="px-3 px-md-5 my-4" id="serviciosAdicionales">
+  <!-- Title -->
+  <div>
+    <h3 class="text-center m-4">SERVICIOS ADICIONALES</h3>
+    <hr />
+  </div>
+
+  <!-- Filtering Bar -->
+  <div class="d-flex">
+    <h5 class="me-3 mb-0"> Ordenar por: </h5>
+
+    <!--
+    <select class="rounded-3 shadow-sm me-3 btn btn-light p-1" @bind="filtro_tipo" >
+      <option value=""> Tipo </option>
+      @if (ListaTiposServicio != null)
+      {
+        @foreach (var servicio in ListaTiposServicio)
+        { 
+          <option value="@servicio.ID_Tipo_Servicio"> @servicio.nombre </option>
+        }
+      }
+    </select>
+    -->
+    <select class="rounded-3 shadow-sm me-3 btn btn-light p-1"@bind="filtro_tipo" @bind:after="UpdateDisplayedItems">
+      <option value=""> Precio </option>
+      <option value="desc"> Descendente </option>
+      <option value="asc"> Ascendente </option>
+    </select>
+        <button class="rounded-3 shadow-sm btn btn-light me-3" @onclick="() => Lista = true">
+            <img src="/icons/list.png" style="height:20px;width:20px;" />
+        </button>
+        <button class="rounded-3 shadow-sm btn btn-light me-3" @onclick="() => Lista = false">
+            <img src="/icons/apps.png" style="height:20px;width:20px;" />
+        </button>
+  </div>
+
+  <!-- Service list -->
+  <div class="d-flex justify-content-between flex-wrap py-3 me-5">
+    @if (ListaServicioRender != null)
+    {
+      @foreach (var servicio in ListaServicioRender)
+      {
+        <CartaServicio Servicio="servicio" />
+      }
+    }
+    else
+    {
+      <h1>Cargando contenido</h1>
+      <div class="spinner-border"></div>
+    }
+  </div>
+
+  <!-- Paginacion responsiva -->
+  <div class="me-5">
+    <ul class="pagination justify-content-end">
+      <li class="page-item">
+        <button class="page-link" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+          Previous
+        </button>
+      </li>
+      @for (int i = 1; i <= TotalPages; i++)
+      {
+        var pageNumber = i;
+        <li class="page-item @(pageNumber == currentPage ? "active" : "")">
+          <button class="page-link" @onclick="@(() => GoToPage(pageNumber))">
+            @pageNumber
+          </button>
+        </li>
+      }
+      <li class="page-item">
+        <button class="page-link" @onclick="NextPage" disabled="@(currentPage == TotalPages)">
+          Next
+        </button>
+      </li>
+    </ul>
+    <p class="text-end me-3"><small>Página @currentPage de @TotalPages</small></p>
+  </div>
+</div>
+
+@code {
+  [Parameter]
+  public string? filtro { get; set; }
+
+  public string filtro_tipo { get; set; } = "";
+  public float filtro_precio { get; set; } = 0.0F;
+  public bool Lista = false;
+
+  private string searchTerm = "";
+
+  private int PageSize = 8;
+  private int currentPage = 1;
+  private int TotalPages = 0;
+
+  List<TiposServicios>? ListaTiposServicio;
+  List<ServicioAdicional>? ListaServicio;
+  List<ServicioAdicional>? ListaServicioRender;
+
+  protected override async Task OnInitializedAsync()
+  {
+    ListaTiposServicio = await Http.GetFromJsonAsync<List<TiposServicios>>("TiposServicios");
+    ListaServicio = await Http.GetFromJsonAsync<List<ServicioAdicional>>("ServiciosAdicionales");
+
+    if (ListaServicio is not null && ListaServicio.Any())
+    {
+      TotalPages = (int)Math.Ceiling((double)ListaServicio.Count / PageSize);
+      currentPage = 1; // Reinicia la página por si acaso
+      UpdateDisplayedItems();
+    }
+  }
+
+  private void GoToPage(int page)
+  {
+    if (page >= 1 && page <= TotalPages)
+    {
+      currentPage = page;
+      UpdateDisplayedItems();
+    }
+  }
+
+  private void PreviousPage()
+  {
+    if (currentPage > 1)
+    {
+      currentPage--;
+      UpdateDisplayedItems();
+    }
+  }
+
+  private void NextPage()
+  {
+    if (currentPage < TotalPages)
+    {
+      currentPage++;
+      UpdateDisplayedItems();
+    }
+  }
+
+  private async Task ApplyFilters()
+  {
+    Console.WriteLine("Filtering triggered"); // Debug message
+
+    // Only load data if we haven't already
+    if (ListaServicio == null)
+    {
+      ListaServicio = await Http.GetFromJsonAsync<List<ServicioAdicional>>("ServiciosAdicionales");
+      if (ListaServicio == null) return;
+    }
+
+    var filtered = ListaServicio.AsQueryable();
+
+    // Type filter
+    if (!string.IsNullOrEmpty(filtro_tipo) && int.TryParse(filtro_tipo, out var tipoId))
+    {
+      filtered = filtered.Where(s => s.TSO_ID_Tipo_Servicio == tipoId);
+      Console.WriteLine($"Applied type filter: {tipoId}"); // Debug
+    }
+
+    // Price filter (fixed to show services LESS than selected price)
+    if (filtro_precio > 0)
+    {
+      filtered = filtered.Where(s => s.costo <= filtro_precio); // Changed to <=
+      Console.WriteLine($"Applied price filter: {filtro_precio}"); // Debug
+    }
+
+    // Update pagination
+    TotalPages = (int)Math.Ceiling((double)filtered.Count() / PageSize);
+    currentPage = Math.Max(1, Math.Min(currentPage, TotalPages)); // Ensure current page is valid
+
+    ListaServicioRender = filtered
+    .Skip((currentPage - 1) * PageSize)
+    .Take(PageSize)
+    .ToList();
+
+    Console.WriteLine($"Results: {ListaServicioRender.Count} items"); // Debug
+    StateHasChanged();
+  }
+
+  private void UpdateDisplayedItems()
+  {
+    if (ListaServicio is not null)
+    {
+      if(filtro_tipo == "asc")
+        ListaServicioRender = ListaServicio
+        .OrderBy(p => p.costo)
+        .Skip((currentPage - 1) * PageSize)
+        .Take(PageSize)
+        .ToList();
+
+      if(filtro_tipo == "desc")
+        ListaServicioRender = ListaServicio
+        .OrderByDescending(p => p.costo)
+        .Skip((currentPage - 1) * PageSize)
+        .Take(PageSize)
+        .ToList();
+      
+      if(filtro_tipo == "")
+        ListaServicioRender = ListaServicio
+        .Skip((currentPage - 1) * PageSize)
+        .Take(PageSize)
+        .ToList();
+    }
+    else
+    {
+      ListaServicioRender = new List<ServicioAdicional>();
+    }
+
+    StateHasChanged();
+  }
+
+}

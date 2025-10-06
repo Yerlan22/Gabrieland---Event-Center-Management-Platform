@@ -1,0 +1,97 @@
+/* ───────────── PagoExitoso ───────────── */
+
+/* Contenedor central y espaciado general */
+.pago-exitoso-wrapper{
+    max-width: 620px;     /* se ve cómodo en desktop y mobile */
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+/* Encabezado “¡Pago exitoso!” */
+h3.text-success{
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+h3.text-success i{
+    font-size: 2rem;      /* agranda el ícono ✔ */
+}
+
+/* Loader (cuando la reserva aún se confirma) */
+.loading-block{
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+.spinner-border{
+    width: 2.5rem;
+    height: 2.5rem;
+}
+
+/* Tarjeta de confirmación */
+.card.border-success{
+    border-width: 2px;
+    border-color: #198754;           /* verde bootstrap */
+    background: #f6fff9;             /* verde muy suave */
+}
+.card.border-success .card-title{
+    color: #233760;                  /* color corporativo */
+    font-weight: 600;
+}
+
+/* Listado de servicios alquilados */
+ul.detalle-servicios{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+ul.detalle-servicios li{
+    position: relative;
+    padding-left: 1.5rem;
+    margin-bottom: .25rem;
+}
+ul.detalle-servicios li::before{
+    content: "\f26b";                /* Bootstrap Icons: check2 */
+    font-family: "Bootstrap Icons";
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: #198754;
+    font-size: 1rem;
+}
+
+/* Total pagado */
+.total-pagado{
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+.total-pagado .text-success{
+    font-size: 1.65rem;
+}
+
+/* Botón “Ver mis reservas” */
+.btn-volver{
+    background: #233760;
+    border: none;
+    border-radius: .375rem;
+    padding: .6rem 1.5rem;
+    font-weight: 600;
+    color: #fff;
+}
+.btn-volver:hover{
+    background: #3D5481;
+}
+.btn-volver:active{
+    transform: translateY(2px);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,.2);
+}
+
+/* ────── Responsivo ────── */
+@media (min-width: 768px){
+    .pago-exitoso-wrapper{ padding: 3rem 0; }
+    h3.text-success      { font-size: 2rem; }
+    .total-pagado        { font-size: 1.75rem; }
+}

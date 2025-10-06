@@ -1,0 +1,173 @@
+@page "/pago-exitoso/{idReserva:int}"
+@using System.Security.Claims
+@using gabrieland.Client.Models
+@inject HttpClient Http
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="pago-exitoso-wrapper">
+
+    <h3 class="text-success mb-4">
+        <i class="bi bi-check-circle-fill me-2"></i>¡Pago exitoso!
+    </h3>
+
+    @if (cargando)
+    {
+        <div class="loading-block">
+            <div class="spinner-border text-success" role="status"></div>
+            <span>Confirmando reserva…</span>
+        </div>
+    }
+    else if (exito)
+    {
+        <div class="card border-success shadow-sm mb-4">
+            <div class="card-body">
+                <h5 class="card-title">¡Gracias, @nombre!</h5>
+
+                <p class="card-text">
+                    Tu reserva de <strong>@sala</strong> para el
+                    <strong>@reserva?.Fecha.ToString("dd/MM/yyyy HH:mm")</strong> quedó confirmada.
+                </p>
+
+                <!-- Alquiler sala -->
+                <ul class="detalle-servicios">
+                    <li>Alquiler Sala – ₡ @precioSala</li>
+                </ul>
+
+                @if (servicios?.Any() ?? false)
+                {
+                    <p class="fw-bold mb-1">Servicios contratados</p>
+                    <ul class="detalle-servicios mb-2">
+                        @foreach (var sv in servicios)
+                        {
+                            <li>@sv.Nombre – ₡ @sv.PrecioTotal</li>
+                        }
+                    </ul>
+                }
+
+                <p class="h5 total-pagado">
+                    Total pagado: <span class="text-success">₡ @total</span>
+                </p>
+
+                <hr />
+                <p class="text-muted mb-0">
+                    Se envió la confirmación a <strong>@correo</strong>.
+                </p>
+            </div>
+        </div>
+
+        <button class="btn btn-volver"
+                @onclick='() => Nav.NavigateTo("/perfil/reservas")'>
+            Ver mis reservas
+        </button>
+    }
+    else
+    {
+        <div class="alert alert-danger">
+            Ocurrió un error al confirmar tu reserva. Inténtalo más tarde.
+        </div>
+    }
+
+</div>
+
+@code {
+    /* -------- modelos para la vista -------- */
+    [Parameter] public int idReserva { get; set; }
+    private Reserva? reserva;
+    private List<ReservaService>? servicios;
+    private string nombre  = "";
+    private string correo  = "";
+    private string sala    = "";
+    private decimal total  = 0;
+    private decimal precioSala = 0;
+
+    /* -------- flags -------- */
+    private bool cargando = true;
+    private bool exito    = false;
+    private const int TIPO_PAGO_ID = 21; 
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            /* 0. Verifica que el parámetro exista */
+            if (idReserva <= 0)
+                throw new Exception("Parámetro idReserva faltante.");
+
+            /* 1. Usuario */
+            var auth  = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var u     = auth.User;
+            nombre    = u.FindFirst(ClaimTypes.Name )?.Value ?? "";
+            correo    = u.FindFirst(ClaimTypes.Email)?.Value ?? "";
+
+            /* 2. Reserva */
+            reserva = await Http.GetFromJsonAsync<Reserva>($"/Reservas/{idReserva}")
+                    ?? throw new Exception("Reserva no encontrada");
+
+            /* 3. Sala */
+            var salaDto = await Http.GetFromJsonAsync<Salas>($"/Salas/{reserva.SAL_Id_Sala}");
+            sala        = salaDto?.Nombre ?? $"Sala {reserva.SAL_Id_Sala}";
+            precioSala  = (decimal)(salaDto?.Precio ?? 0);
+
+            /* 4. Servicios */
+            servicios = await Http.GetFromJsonAsync<List<ReservaService>>
+                                ($"/ServiciosReserva/reserva/{idReserva}") ?? new();
+            await EnriquecerServiciosAsync(servicios);
+
+            /* 5. Total (sala + servicios) */
+            total = precioSala + servicios.Sum(s => (decimal)s.PrecioTotal);
+
+            /* 6. Intento de crear la factura ------------------------------- */
+            var facturaResp = await Http.PostAsJsonAsync("Facturas", new
+            {
+                ReservaId  = idReserva,
+                TipoPagoId = TIPO_PAGO_ID   // 21 = tarjeta
+            });
+
+            if (!facturaResp.IsSuccessStatusCode)
+            {
+                // No se creó factura → no cambiamos la reserva
+                Console.Error.WriteLine($"[ERROR] No se pudo generar la factura: {(int)facturaResp.StatusCode}");
+                // Opcional: toast o UX friendly message
+                return;           // aborta sin poner EnCurso
+            }
+
+
+            reserva.Estado_Reserva = EstadoReserva.EnCurso;
+            var respEstado = await Http.PutAsJsonAsync($"/Reservas/{reserva.Id_Reserva}", reserva);
+            respEstado.EnsureSuccessStatusCode();
+
+
+            exito = true;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error al generar factura: {ex.Message}");
+            exito = false;
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+    private async Task EnriquecerServiciosAsync(List<ReservaService> servicios)
+    {
+        var idsPendientes = servicios
+            .Where(s => string.IsNullOrWhiteSpace(s.Nombre))
+            .Select(s => s.SEA_Id_Servicio)
+            .Distinct()
+            .ToList();
+
+        var tareas = idsPendientes.Select(id => Http.GetFromJsonAsync<ServicioAdicional>($"ServiciosAdicionales/{id}"));
+        var resultados = await Task.WhenAll(tareas);
+
+        var mapa = resultados
+            .Where(r => r != null)
+            .ToDictionary(r => r!.ID_Servicios_Adicionales, r => r.nombre);
+
+        foreach (var s in servicios)
+            if (mapa.TryGetValue(s.SEA_Id_Servicio, out var n))
+                s.Nombre = n;
+    }
+}
