@@ -1,0 +1,85 @@
+@inject AuthService AuthService
+@inject NavigationManager NavigationManager
+@using gabrieland.Client.Models
+@using System.ComponentModel.DataAnnotations
+@using gabrieland.Client.Services
+
+<EditForm Model="@login" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+
+    <div class="row w-75 mx-auto">
+        @if (showError)
+        {
+            <div class="d-grid mb-2">
+                <div class="alert alert-danger" role="alert">
+                    <p class="text-center m-0">@mensajeError</p>
+                </div>
+            </div>
+        }
+
+        <div class="mb-2">
+            <label>Usuario</label>
+            <InputText @bind-Value="login.UserName" class="form-control" />
+            <ValidationMessage For="@(() => login.UserName)" />
+        </div>
+
+        <div class="mb-3 position-relative">
+            <label>Contraseña</label>
+            <div class="input-group">
+                <InputText @bind-Value="login.Password" type="@PasswordInputType" class="form-control" />
+                <button type="button" class="btn btn-outline-secondary" @onclick="TogglePasswordVisibility">
+                    <i class="@PasswordToggleIcon"></i>
+                </button>
+            </div>
+            <ValidationMessage For="@(() => login.Password)" />
+        </div>
+
+        <div class="d-grid mb-2">
+            <button type="submit" class="custom-button">Ingresar</button>
+        </div>
+    </div>
+
+    <div class="text-center">
+        <a href="#" class="d-block mb-2 small">¿Has olvidado tu contraseña?</a>
+        <a href="/register" class="d-block small">¿No tienes cuenta? Regístrate aquí</a>
+    </div>
+</EditForm>
+
+@code {
+    private LoginDto login = new LoginDto();
+    private bool showError = false;
+    private string mensajeError = string.Empty;
+
+    private string PasswordInputType = "password";
+    private string PasswordToggleIcon = "bi-eye-slash";
+
+    private async Task HandleValidSubmit()
+    {
+        showError = false;
+
+        var errorMessage = await AuthService.LoginAsync(login.UserName, login.Password);
+        if (string.IsNullOrEmpty(errorMessage))
+        {
+            NavigationManager.NavigateTo("/");
+        }
+        else
+        {
+            showError = true;
+            mensajeError = errorMessage;
+        }
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        if (PasswordInputType == "password")
+        {
+            PasswordInputType = "text";
+            PasswordToggleIcon = "bi-eye";
+        }
+        else
+        {
+            PasswordInputType = "password";
+            PasswordToggleIcon = "bi-eye-slash";
+        }
+    }
+}

@@ -1,0 +1,79 @@
+﻿@using gabrieland.Client.Models
+
+@code {
+    [Parameter] public ServicioAdicional? Servicio { get; set; }
+    [Parameter] public EventCallback<ReservaService> AddService { get; set; }
+    [Parameter] public EventCallback<int> OnMouseEnter { get; set; }
+    [Parameter] public int serviceId { get; set; }  
+    private ReservaService? newReservaService;
+    private int quantity = 0;
+    private void Increment() => quantity++;
+    private void Decrement()
+    {
+        if (quantity > 0)
+            quantity--;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Servicio != null){
+            serviceId = Servicio.ID_Servicios_Adicionales;
+        }
+        /*if(Servicio.TSO_ID_Tipo_Servicio == 1){
+            serviceImage = "https://hips.hearstapps.com/hmg-prod/images/costillas-con-vino-tinto-1583163561.jpg?crop=1xw:1xh;center,top&resize=980:*";
+        }else if (Servicio.TSO_ID_Tipo_Servicio == 2){
+            serviceImage = "https://img.freepik.com/foto-gratis/oficial-seguridad-tiro-medio-posando-estudio_23-2150275720.jpg?semt=ais_hybrid&w=740";
+        }else if (Servicio.TSO_ID_Tipo_Servicio == 3){
+            serviceImage = "https://hips.hearstapps.com/hmg-prod/images/costillas-con-vino-tinto-1583163561.jpg?crop=1xw:1xh;center,top&resize=980:*";
+        }else if (Servicio.TSO_ID_Tipo_Servicio == 4){
+            serviceImage = "https://hips.hearstapps.com/hmg-prod/images/costillas-con-vino-tinto-1583163561.jpg?crop=1xw:1xh;center,top&resize=980:*";
+        }else{
+            serviceImage = "https://img.freepik.com/foto-gratis/oficial-seguridad-tiro-medio-posando-estudio_23-2150275720.jpg?semt=ais_hybrid&w=740";
+        }*/
+    }
+    private async Task NewAddedService()
+    {   
+        if (Servicio != null)
+        {
+            newReservaService = new ReservaService
+            {
+                Nombre = Servicio.nombre,
+                Cantidad = quantity,
+                PrecioTotal = quantity * Servicio.costo,
+                SEA_Id_Servicio = Servicio.ID_Servicios_Adicionales
+            };
+
+            await AddService.InvokeAsync(newReservaService);
+        }
+    }
+}
+
+@if (Servicio is not null)
+{
+    <div class="service-bar d-flex align-items-center p-2 mb-2"
+        @onmouseenter="() => OnMouseEnter.InvokeAsync(serviceId)">
+
+        <div class="col-nombre text-start fw-bold">
+            @Servicio.nombre
+        </div>
+
+        <div class="col-precio text-center text-muted">
+            Precio: ₡@Servicio.costo
+        </div>
+
+        <div class="col-contador d-flex justify-content-center align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="Decrement">−</button>
+            <input type="text" readonly class="form-control form-control-sm text-center mx-2" style="width: 50px;" value="@quantity" />
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="Increment">+</button>
+        </div>
+
+        <div class="col-boton text-end">
+            <button class="btn btn-sm btn-primary" @onclick="NewAddedService" disabled="@((quantity == 0))">
+                Añadir
+            </button>
+        </div>
+    </div>
+}
+
+
+

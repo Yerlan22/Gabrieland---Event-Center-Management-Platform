@@ -1,0 +1,182 @@
+@using gabrieland.Client.Models
+@inject HttpClient Http
+@inject IToastService toastService
+
+@code {
+    [Parameter]public ServicioAdicional? Servicio { get; set; }
+    [Parameter]public EventCallback CloseIt { get; set; }
+    [Parameter]public EventCallback<ServicioAdicional> OnSave { get; set; }
+    List<TiposServicios>? ListaTiposServicio;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ListaTiposServicio = await Http.GetFromJsonAsync<List<TiposServicios>>("TiposServicios");
+    }
+
+    private async Task Saving()
+    {
+        await OnSave.InvokeAsync(Servicio);
+        await CloseIt.InvokeAsync();
+    }
+}
+<!-- this code is for fotous-->
+@code{
+    [Parameter] public EventCallback<(int, IBrowserFile)> UpImage { get; set; }
+    [Parameter] public List<FotoServicio>? FotosServicio { get; set; }
+    private List<string> fotos = new();
+    private async Task SubirFotos(InputFileChangeEventArgs e)
+    {
+        if (Servicio is null || Servicio.ID_Servicios_Adicionales == 0)
+        {
+            errorMessage = "Primero debe guardar la sala antes de subir fotos.";
+            return;
+        }
+
+        foreach (var archivo in e.GetMultipleFiles(4 - fotos.Count))
+        {
+            await UpImage.InvokeAsync((Servicio.ID_Servicios_Adicionales, archivo));
+
+            // Mostrar preview en base64 (opcional)
+            using var stream = archivo.OpenReadStream(10_000_000);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var base64 = $"data:{archivo.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+            fotos.Add(base64);
+        }
+    }
+    private async Task DeleteFoto(int idFoto)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"Servicios/Fotos/{idFoto}");
+
+            if (response.IsSuccessStatusCode && FotosServicio is not null)
+            {
+                var fotoAEliminar = FotosServicio.FirstOrDefault(f => f.ID_foto == idFoto);
+                if (fotoAEliminar is not null)
+                {
+                    FotosServicio.Remove(fotoAEliminar);
+                }
+            }
+            ShowToast("deleteSuccess");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("deleteFailed");
+        }
+    }
+    private void ShowToast(string happening)
+    {
+        if (happening == "deleteSuccess")
+        {
+            toastService.ShowSuccess("Foto eliminada exitosamente!");
+        }
+        else if (happening == "deleteFailed")
+        {
+            toastService.ShowError("La Foto no pudo ser eliminada.");
+        }
+        else
+        {
+            toastService.ShowInfo("Mensaje perdido.");
+        }
+    }
+}
+<!-- Codigo de paginacion -->
+@code {
+    private int currentIndex = 0;
+    private const int maxVisibleImages = 4;
+
+    private void Next()
+    {
+        if (FotosServicio != null && currentIndex + maxVisibleImages < FotosServicio.Count)
+        {
+            currentIndex++;
+        }
+    }
+
+    private void Previous()
+    {
+        if (currentIndex > 0)
+        {
+            currentIndex--;
+        }
+    }
+}
+<div class="modal-box">
+    <button class="close-button" @onclick="() => CloseIt.InvokeAsync()">X</button>
+    <h4 class="modal-title text-start ms-3">@((Servicio == null || Servicio.nombre == "")?"Agregar Servicio":"Editar Servicio")</h4>
+
+    @if (Servicio != null)
+    {
+        <EditForm class="service-form" Model="@Servicio" OnValidSubmit="Saving">
+            <DataAnnotationsValidator />
+
+            <div class="form-group service_input-group">
+                <label class="text-start ms-3">Nombre</label>
+                <InputText class="form-control" @bind-Value="Servicio.nombre" placeholder="Nombre" />
+                <ValidationMessage For="@(() => Servicio.nombre)" />
+            </div>
+            <div class="form-group service_input-group">
+                <label class="text-start ms-3">Costo</label>
+                <InputNumber class="form-control" @bind-Value="Servicio.costo" />
+                <ValidationMessage For="@(() => Servicio.costo)" />
+            </div>
+
+            <div class="form-group service_input-group">
+                <label class="text-start ms-3">Descripción</label>
+                <InputText class="form-control" @bind-Value="Servicio.descripcion" placeholder="Descripción" />
+                <ValidationMessage For="@(() => Servicio.descripcion)" />
+            </div>
+
+            <div class="form-group service_input-group">
+                <label class="text-start ms-3">Tipos</label>
+                <InputSelect class="form-control" @bind-Value="Servicio.TSO_ID_Tipo_Servicio">
+                @if(ListaTiposServicio != null)    
+                    @foreach (var item in ListaTiposServicio)
+                    {
+                        <option value="@item.ID_Tipo_Servicio"> @item.nombre </option>
+                    }
+                
+                </InputSelect>
+                <ValidationMessage For="@(() => Servicio.TSO_ID_Tipo_Servicio)" />
+            </div>
+            <!-- insertar imagenes -->
+            <div>
+                <label class="subtitle ms-3 text-start">Agregar fotos</label>
+                <InputFile OnChange="SubirFotos" class="input-file" multiple accept="image/*" />
+                <div class="foto-container">
+                    <button class="nav-button" @onclick="Previous" disabled="@(currentIndex == 0)">&#8249;</button>
+
+                    @if (FotosServicio != null)
+                    {
+                        foreach (var foto in FotosServicio.Skip(currentIndex).Take(maxVisibleImages))
+                        {
+                            var fullUrl = $"http://localhost:5027{foto.foto}";
+                            <div class="vertical-container">
+                                <div class="foto-cuadro">
+                                    <a href="@fullUrl" target="_blank">
+                                        <img src="@fullUrl" class="img-preview" />
+                                    </a>
+                                </div>
+                                <button class="del-button" @onclick="() => DeleteFoto(foto.ID_foto)">
+                                    Eliminar
+                                </button>
+                            </div>
+                        }
+                    }
+
+                    <button class="nav-button" @onclick="Next"
+                            disabled="@(FotosServicio == null || currentIndex + maxVisibleImages >= FotosServicio.Count)">
+                        &#8250;
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn guardar-button"> Agregar Servicio </button>
+
+        </EditForm>
+    }
+
+</div>

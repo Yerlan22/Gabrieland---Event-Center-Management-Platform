@@ -1,0 +1,31 @@
+@using gabrieland.Client.Models
+
+@code {
+    [Parameter] public ReservaService? ServicioR { get; set; }
+    [Parameter] public EventCallback<int> RemoveService { get; set; }
+}
+
+@if (ServicioR is not null)
+{
+    <div class="service-bar d-flex align-items-center p-2 mb-2">
+
+        <div class="col-nombre text-start fw-bold">
+            @ServicioR.Nombre
+        </div>
+
+        <div class="col-precio text-center text-muted">
+            Cantidad: @ServicioR.Cantidad
+        </div>
+
+        <div class="col-contador text-center text-muted">
+            Total: ₡@ServicioR.PrecioTotal
+        </div>
+
+        <div class="col-boton text-end">
+            <button class="btn btn-sm btn-primary"
+            @onclick="() => RemoveService.InvokeAsync(ServicioR.SEA_Id_Servicio)">
+                Eliminar
+            </button>
+        </div>
+    </div>
+}

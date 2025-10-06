@@ -1,0 +1,26 @@
+@using gabrieland.Client.Models
+@using gabrieland.Client.Components.AdminUsuarios
+
+@code {
+    [Parameter] public Usuario? Usuario { get; set; }
+    [Parameter] public EventCallback<Usuario> OnEdit { get; set; }
+    [Parameter] public EventCallback<int> OnDelete { get; set; }
+    [Parameter] public Func<int, int>? ContarReservas { get; set; }
+}
+
+@if (Usuario is not null)
+{
+    <tr>
+        <td>@Usuario.nombre</td>
+        <td>@(Usuario.activo == "Y" ? "Activo" : "Inactivo")</td>
+        <td>@(ContarReservas?.Invoke(Usuario.ID_Usuario) ?? 0)</td>
+        <td class="text-end">
+            <button class="btn btn-secondary me-2" @onclick="() => OnEdit.InvokeAsync(Usuario)">
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-secondary" @onclick="() => OnDelete.InvokeAsync(Usuario.ID_Usuario)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    </tr>
+}

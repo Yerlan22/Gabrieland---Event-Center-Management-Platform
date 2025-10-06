@@ -1,0 +1,17 @@
+<div class="reserva-card">
+    <div class="col fecha">
+        <p><strong>Fecha:</strong> @fecha</p>
+    </div>
+    <div class="col estado">
+        <p><strong>Estado:</strong> @estado</p>
+    </div>
+    <div class="col botones">
+        <button class="btn btn-verificar">Verificar</button>
+        <button class="btn btn-cancelar">Cancelar</button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string fecha { get; set; }
+    [Parameter] public string estado { get; set; }
+}

@@ -1,0 +1,200 @@
+@inject NavigationManager NavigationManager
+@using gabrieland.Client.Models
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject HttpClient Http
+@using Atario.Utilities;
+@inject IJSRuntime JS
+
+<EditForm Model="@usuario" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <div class="mb-3">
+        <label>Nombre:</label>
+        <InputText @bind-Value="usuario.nombre" class="form-control" />
+        <ValidationMessage For="@(() => usuario.nombre)" />
+    </div>
+
+    <div class="mb-3">
+        <label>Apellido:</label>
+        <InputText @bind-Value="usuario.apellido" class="form-control" />
+        <ValidationMessage For="@(() => usuario.apellido)" />
+    </div>
+
+    <div class="mb-3">
+        <label>Teléfono:</label>
+        <InputText @bind-Value="usuario.num_telefonico" class="form-control" />
+        <ValidationMessage For="@(() => usuario.num_telefonico)" />
+    </div>
+
+    <div class="mb-3">
+        <label>Usuario</label>
+        <InputText @bind-Value="usuario.UserName" class="form-control" />
+        <ValidationMessage For="@(() => usuario.UserName)" />
+    </div>
+
+    <div class="mb-3">
+        <label>Fecha de Nacimiento:</label>
+        <InputDate @bind-Value="usuario.fecha_nacimiento" class="form-control" />
+        <ValidationMessage For="@(() => usuario.fecha_nacimiento)" />
+    </div>
+
+    <div class="mb-3">
+        <label>Correo:</label>
+        <InputText @bind-Value="usuario.correo" class="form-control" />
+        <ValidationMessage For="@(() => usuario.correo)" />
+    </div>
+
+    <div class="mb-3 position-relative">
+        <label>Contraseña</label>
+        <div class="input-group">
+            <InputText @bind-Value="usuario.contrasena" type="@PasswordInputType" class="form-control" />
+            <button type="button" class="btn btn-outline-secondary" @onclick="TogglePasswordVisibility" tabindex="-1">
+                <i class="@PasswordToggleIcon"></i>
+            </button>
+        </div>
+        <ValidationMessage For="@(() => usuario.contrasena)" />
+    </div>
+
+    <div class="mb-3 position-relative">
+        <label>Confirmar Contraseña</label>
+        <div class="input-group">
+            <InputText class="form-control" type="@ConfirmInputType" @bind-Value="ConfirmPassword" />
+            <button type="button" class="btn btn-outline-secondary" @onclick="ToggleConfirmVisibility" tabindex="-1">
+                <i class="@ConfirmToggleIcon"></i>
+            </button>
+        </div>
+        @if (!string.IsNullOrEmpty(ConfirmPassword) && usuario.contrasena != ConfirmPassword)
+        {
+            <div class="text-danger">Las contraseñas no coinciden.</div>
+        }
+    </div>
+
+    <div class="d-grid mb-3">
+        <button type="submit" class="custom-button btn btn-primary" disabled="@isLoading">
+            @if (isLoading)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span class="ms-2">Registrando...</span>
+            }
+            else
+            {
+                <span>Registrar</span>
+            }
+        </button>
+    </div>
+    <div class="text-center">
+        <a href="/login" class="d-block small">¿Ya tienes cuenta? Accede aquí</a>
+    </div>
+</EditForm>
+
+@if (showErrorToast)
+{
+    <div class="toast-container">
+        <div class="toast show align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body fs-5">
+                    @mensajeError
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                        @onclick="() => showErrorToast = false" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showSuccessToast)
+{
+    <div class="toast-container">
+        <div class="toast show align-items-center text-white bg-success border-0" role="alert" aria-live="polite" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body fs-5">
+                    @mensajeExito
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                        @onclick="() => showSuccessToast = false" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private Usuario usuario = new Usuario();
+    private string ConfirmPassword = string.Empty;
+    private string mensajeError = string.Empty;
+    private string mensajeExito = string.Empty;
+    private bool showErrorToast = false;
+    private bool showSuccessToast = false;
+    private bool isLoading = false;
+
+
+    private string PasswordToggleIcon = "bi bi-eye-slash";
+    private string ConfirmToggleIcon = "bi bi-eye-slash";
+    private string PasswordInputType = "password";
+    private string ConfirmInputType = "password";
+
+    private void TogglePasswordVisibility()
+    {
+        PasswordInputType = PasswordInputType == "password" ? "text" : "password";
+        PasswordToggleIcon = PasswordInputType == "password" ? "bi bi-eye-slash" : "bi bi-eye";
+    }
+
+    private void ToggleConfirmVisibility()
+    {
+        ConfirmInputType = ConfirmInputType == "password" ? "text" : "password";
+        ConfirmToggleIcon = ConfirmInputType == "password" ? "bi bi-eye-slash" : "bi bi-eye";
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        
+        isLoading = true;
+        showErrorToast = false;
+        showSuccessToast = false;
+
+        usuario.hash_password = Encrytion.ComputeSha256Hash(usuario.contrasena);
+        usuario.TUO_ID_Tipo_Usuario = 1;
+
+        var response = await Http.PostAsJsonAsync("auth/register", usuario);
+
+        isLoading = false;
+        StateHasChanged();
+
+        if (response.IsSuccessStatusCode)
+        {
+            mensajeExito = "¡Registro exitoso! Redirigiendo...";
+            showSuccessToast = true;
+            StateHasChanged();
+            await Task.Delay(3000);
+            NavigationManager.NavigateTo("/login");
+        }
+        else
+        {
+            var errorText = await response.Content.ReadAsStringAsync();
+            mensajeError = ExtractErrorMessage(errorText);
+            showErrorToast = true;
+            StateHasChanged();
+        }
+    }
+    private string ExtractErrorMessage(string responseText)
+    {
+        // Intentar extraer "message" si es JSON, sino devolver texto plano.
+        try
+        {
+            var jsonDoc = System.Text.Json.JsonDocument.Parse(responseText);
+            if (jsonDoc.RootElement.TryGetProperty("message", out var messageProp))
+            {
+                return messageProp.GetString() ?? responseText;
+            }
+            else
+            {
+                // No hay "message", mostrar todo el texto JSON como string
+                return jsonDoc.RootElement.ToString();
+            }
+        }
+        catch
+        {
+            // No es JSON, devolver el texto tal cual
+            return responseText;
+        }
+    }
+}

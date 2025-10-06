@@ -1,0 +1,127 @@
+.usuario-card-admin {
+  background-color: #f8f9fa;
+  transition: background-color 0.3s ease;
+  border-top: #233760;
+  border-style: solid;
+}
+
+.usuario-card-admin:hover {
+  background-color: #3D5481;
+  cursor: pointer;
+}
+
+.usuario-card-admin .info h5 {
+  margin: 0;
+  font-weight: 600;
+}
+
+.usuario-card-admin small {
+  color: #6c757d;
+}
+
+.usuario-card-admin .info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  background-color: #233760 !important;
+  color: white !important;
+}
+
+.btn:hover {
+  background-color: #3D5481 !important;
+  color: white !important;
+}
+
+.btn:active {
+  /*background-color: #2c3f5d !important;*/
+  /* un poco más oscuro para hundido */
+  transform: translateY(2px) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.contador-cantidad {
+  display: flex;
+  align-items: center;
+  max-width: 140px;
+}
+
+.contador-cantidad button {
+  width: 36px;
+  height: 36px;
+  background-color: #233760;
+  color: white;
+  border: none;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.contador-cantidad button:hover {
+  background-color: #3D5481;
+}
+
+.contador-cantidad input {
+  width: 50px;
+  text-align: center;
+  border: 1px solid #ccc;
+  margin: 0 4px;
+  height: 36px;
+}
+
+.service-bar {
+  border-top: 1px solid #363576;
+  min-height: 70px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  background-color: transparent; /* Sin fondo */
+}
+
+.col-nombre {
+  flex-basis: 35%;
+  padding-left: 1rem;
+}
+
+.col-precio {
+  flex-basis: 15%;
+  text-align: center;
+}
+
+.col-contador {
+  flex-basis: 30%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.col-boton {
+  flex-basis: 20%;
+  padding-right: 1rem;
+  text-align: end;
+}
+
+.service-bar:first-child {
+  border-top: none; /* Quita línea arriba de la primera barra */
+}
+
+@media (max-width: 768px) {
+  .service-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 1rem 0.5rem;
+  }
+
+  .col-nombre,
+  .col-precio,
+  .col-contador,
+  .col-boton {
+    flex-basis: auto;
+    text-align: center;
+    padding: 0;
+  }
+}
+

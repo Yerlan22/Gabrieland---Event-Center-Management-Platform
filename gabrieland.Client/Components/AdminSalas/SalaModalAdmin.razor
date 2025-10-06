@@ -1,0 +1,213 @@
+﻿@using gabrieland.Client.Models
+@inject IJSRuntime JS
+@inject HttpClient Http
+@inject IToastService toastService
+
+@code { 
+    [Parameter] public Salas? Sala { get; set; }
+    [Parameter] public List<FotoSala>? FotosSalas { get; set; }
+    [Parameter] public EventCallback CloseIt { get; set; }
+    [Parameter] public EventCallback<Salas> OnSave { get; set; }
+    [Parameter] public EventCallback<(int, IBrowserFile)> UpImage { get; set; }
+
+    private string nombre = string.Empty;
+    private int capacidad;
+    private float precioActual;
+    private string descripcion = string.Empty;
+    private string tipoSeleccionado = string.Empty;
+    private List<string> tipos = new() { "Auditorio", "Sala de juntas", "Sala pequeña" };
+    private List<string> fotos = new();
+    private int id;
+    private bool nombreInvalido;
+    private bool capacidadInvalido;
+    private bool precioInvalido;
+    private bool descripcionInvalido;
+
+    protected override void OnParametersSet()
+    {
+        if (Sala is not null)
+        {   
+            id = Sala.IdSala;
+            nombre = Sala.Nombre;
+            capacidad = Sala.Capacidad;
+            precioActual = Sala.Precio;
+            descripcion = Sala.Descripcion;
+            Sala.Activo = "Y";
+        }
+    }
+
+    private async Task Saving()
+    {
+        nombreInvalido = string.IsNullOrWhiteSpace(nombre);
+        capacidadInvalido = capacidad <= 0;
+        precioInvalido = precioActual <= 0;
+        descripcionInvalido = string.IsNullOrWhiteSpace(descripcion);
+
+        if (nombreInvalido || capacidadInvalido || precioInvalido || descripcionInvalido)
+            return;
+
+        if (Sala is not null)
+        {
+            Sala.Nombre = nombre;
+            Sala.Capacidad = capacidad;
+            Sala.Precio = precioActual;
+            Sala.Descripcion = descripcion;
+
+            await OnSave.InvokeAsync(Sala);
+        }
+    }
+
+    private async Task SubirFotos(InputFileChangeEventArgs e)
+    {
+        if (Sala is null || Sala.IdSala == 0)
+        {
+            errorMessage = "Primero debe guardar la sala antes de subir fotos.";
+            return;
+        }
+
+        foreach (var archivo in e.GetMultipleFiles(4 - fotos.Count))
+        {
+            await UpImage.InvokeAsync((Sala.IdSala, archivo));
+
+            // Mostrar preview en base64 (opcional)
+            using var stream = archivo.OpenReadStream(10_000_000);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var base64 = $"data:{archivo.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+            fotos.Add(base64);
+        }
+    }
+    private string errorMessage = "";
+
+    private async Task DeleteFoto(int idFoto)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"Salas/Fotos/{idFoto}");
+
+            if (response.IsSuccessStatusCode && FotosSalas is not null)
+            {
+                var fotoAEliminar = FotosSalas.FirstOrDefault(f => f.IdFoto == idFoto);
+                if (fotoAEliminar is not null)
+                {
+                    FotosSalas.Remove(fotoAEliminar);
+                }
+            }
+            ShowToast("deleteSuccess");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error: " + ex.Message;
+            ShowToast("deleteFailed");
+        }
+    }
+    private void ShowToast(string happening)
+    {   
+        if (happening == "deleteSuccess")
+        {
+            toastService.ShowSuccess("Sala eliminada exitosamente!");
+        }
+        else if (happening == "deleteFailed")
+        {
+            toastService.ShowError("Sala no pudo ser eliminada.");
+        }
+        else
+        {
+            toastService.ShowInfo("Mensaje perdido.");
+        } 
+    }
+}
+
+@code {
+    private int currentIndex = 0;
+    private const int maxVisibleImages = 4;
+
+    private void Next()
+    {
+        if (FotosSalas != null && currentIndex + maxVisibleImages < FotosSalas.Count)
+        {
+            currentIndex++;
+        }
+    }
+
+    private void Previous()
+    {
+        if (currentIndex > 0)
+        {
+            currentIndex--;
+        }
+    }
+}
+
+<div class="modal-box">
+    <button class="close-button" @onclick="() => CloseIt.InvokeAsync()">X</button>
+    
+    <h4 class=" ms-3 text-start modal-title">
+        @((Sala == null || Sala.Nombre == "")?"Agregar Sala":"Editar Sala")
+    </h4>
+    
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="form-vertical">
+        <label class="ms-3 text-start subtitle">Nombre</label>
+        <input type="text" @bind="nombre" placeholder="Nombre" class="@(nombreInvalido ? "input-error" : "")" />
+        @if (nombreInvalido)
+        {
+            <div class="error-text">El nombre es requerido</div>
+        }
+
+        <label class="ms-3 text-start subtitle">Capacidad</label>
+        <input type="number" @bind="capacidad" placeholder="Capacidad" class="@(capacidadInvalido ? "input-error" : "")" />
+        @if (capacidadInvalido)
+        {
+            <div class="error-text">La capacidad es requerida</div>
+        }
+
+        <label class="subtitle ms-3 text-start">Precio Actual</label>
+        <input type="number" @bind="precioActual" placeholder="Precio" class="@(precioInvalido ? "input-error" : "")" />
+        @if (precioInvalido)
+        {
+            <div class="error-text">El precio es requerido</div>
+        }
+
+        <label class=" subtitle ms-3 text-start">Descripción</label>
+        <textarea @bind="descripcion" placeholder="Descripción" class="@(descripcionInvalido ? "input-error" : "") text-descrip"></textarea>
+        @if (descripcionInvalido)
+        {
+            <div class="error-text">La descripción es requerida</div>
+        }
+
+        <label class="subtitle ms-3 text-start">Agregar fotos</label>
+        <InputFile OnChange="SubirFotos" class="input-file" multiple accept="image/*" />
+        <div class="foto-container">
+            <button class="nav-button" @onclick="Previous" disabled="@(currentIndex == 0)">&#8249;</button>
+
+            @if (FotosSalas != null)
+            {
+                foreach (var foto in FotosSalas.Skip(currentIndex).Take(maxVisibleImages))
+                {
+                    var fullUrl = $"http://localhost:5027{foto.Foto}";
+                    <div class="vertical-container">
+                        <div class="foto-cuadro">
+                            <a href="@fullUrl" target="_blank">
+                                <img src="@fullUrl" class="img-preview" />
+                            </a>
+                        </div>
+                        <button class="del-button" @onclick="() => DeleteFoto(foto.IdFoto)" >
+                            Eliminar
+                        </button>
+                    </div>
+                }
+            }
+
+            <button class="nav-button" @onclick="Next"
+                    disabled="@(FotosSalas == null || currentIndex + maxVisibleImages >= FotosSalas.Count)">
+                &#8250;
+            </button>
+        </div>
+        <button class="guardar-button" @onclick="Saving">Guardar cambios</button>
+    </div>
+</div>

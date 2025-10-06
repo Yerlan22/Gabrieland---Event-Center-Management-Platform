@@ -1,0 +1,18 @@
+﻿@inject NavigationManager Navigation
+
+@code {
+  private void IrSalas()
+    {
+      
+        Navigation.NavigateTo($"/salas");
+        
+    }
+}
+
+<div class="slider-container position-relative my-4 mx-auto contain-sub">
+    <img src="https://audiovisualesfader.com/wp-content/uploads/2022/03/cena-evento-presencial-sala-hotel-1024x683.png" class="slider-image img-fluid rounded" />
+    <div class="slider-buttons position-absolute bottom-0 start-50 translate-middle-x d-flex gap-3 mb-3">
+        <button class="btn btn-secondary buttt" @onclick="IrSalas">Salas</button>
+        <button class="btn btn-secondary buttt">Servicios</button>
+    </div>
+</div>

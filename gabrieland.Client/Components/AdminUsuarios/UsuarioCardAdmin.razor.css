@@ -1,0 +1,40 @@
+.usuario-card-admin {
+  background-color: #f8f9fa;
+  transition: background-color 0.3s ease;
+}
+
+.usuario-card-admin:hover {
+  background-color: #3D5481;
+  cursor: pointer;
+}
+
+.usuario-card-admin .info h5 {
+  margin: 0;
+  font-weight: 600;
+}
+
+.usuario-card-admin small {
+  color: #6c757d;
+}
+
+.usuario-card-admin .info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  background-color: #233760 !important;
+  color: white !important;
+}
+
+.btn:hover {
+  background-color: #3D5481 !important;
+  color: white !important;
+}
+
+.btn:active {
+  transform: translateY(2px) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}

@@ -1,0 +1,47 @@
+﻿<div class="accordion" id="stepsAccordion">
+    @foreach (var step in Steps)
+    {
+        var stepId = $"step-{Steps.IndexOf(step)}";
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading-@stepId">
+                <button class="accordion-button @(step.IsOpen ? "" : "collapsed")"
+                        type="button"
+                        @onclick="() => ToggleStep(step)"
+                        aria-expanded="@step.IsOpen">
+                    @step.Title
+                </button>
+            </h2>
+            @if (step.IsOpen)
+            {
+                <div class="accordion-collapse collapse show" aria-labelledby="heading-@stepId">
+                    <div class="accordion-body">
+                        @step.Description
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    class Step
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public bool IsOpen { get; set; } = false;
+    }
+
+    List<Step> Steps = new()
+    {
+        new() { Title = "Paso 1: Elige la sala", Description = "Selecciona el salón..." },
+        new() { Title = "Paso 2: Selecciona servicios adicionales", Description = "Agrega servicios..." },
+        new() { Title = "Paso 3: Elige la hora", Description = "Define hora de inicio..." },
+        new() { Title = "Paso 4: Añade servicios adicionales", Description = "Personaliza tu evento..." },
+        new() { Title = "Paso 5: Realiza el pago", Description = "Finaliza tu reserva..." },
+    };
+
+    void ToggleStep(Step step)
+    {
+        step.IsOpen = !step.IsOpen;
+    }
+}

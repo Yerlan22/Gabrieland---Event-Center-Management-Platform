@@ -1,0 +1,8 @@
+﻿.home-icon-link {
+    display: inline-block;
+    transition: transform 0.2s ease-in-out;
+}
+
+    .home-icon-link:hover {
+        transform: scale(1.1);
+    }

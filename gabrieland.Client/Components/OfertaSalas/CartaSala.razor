@@ -1,0 +1,41 @@
+﻿@using gabrieland.Client.Models
+@using gabrieland.Client.Components.OfertaSalas
+@inject NavigationManager Navigation
+
+@code {
+  [Parameter]
+  public Salas? Sala { get; set; }
+  [Parameter]
+  public string? Foto { get; set; }
+
+  private void IrADetalle()
+    {
+        if (Sala is not null)
+        {
+            Navigation.NavigateTo($"/salas/{Sala.IdSala}");
+        }
+    }
+}
+
+<div class="carta-sala" @onclick="IrADetalle" style="cursor: pointer;">
+    @if (Sala is not null)
+    {   @if (!string.IsNullOrEmpty(Foto))
+        { 
+          var fullUrl = $"http://localhost:5027{Foto}";
+          <img src="@fullUrl" alt="Imagen de @Sala.Nombre" class="sala-imagen" />
+        } else {
+          <img src="https://audiovisualesfader.com/wp-content/uploads/2022/03/cena-evento-presencial-sala-hotel-1024x683.png" alt="Imagen de @Sala.Nombre" class="sala-imagen" />
+        }  
+        <div class="contenido">
+            <h4 class="nombre">@Sala.Nombre</h4>
+            <p class="descripcion">@((Sala.Descripcion?.Length > 100)
+                ? Sala.Descripcion.Substring(0, 100) + "..." : Sala.Descripcion)</p>
+            <p class="precio">Precio: ₡ @Sala.Precio.ToString("N0") por hora</p>
+            <p class="continue">Hacer click para ver más información → </p>
+        </div>
+    }
+    else
+    {
+        <p>Cargando sala...</p>
+    }
+</div>

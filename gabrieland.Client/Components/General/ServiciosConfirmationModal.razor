@@ -1,0 +1,21 @@
+<div class="confirm-box p-4 rounded shadow">
+    <h5>@Title</h5>
+    <p>@Message</p>
+    <div class="d-flex justify-content-end gap-2 mt-3">
+        <button class="btn btn-secondary" @onclick="() => DoCancel.InvokeAsync()">Cancelar</button>
+        <button class="btn btn-danger" @onclick="() => DoConfirmation.InvokeAsync(ServicioId)">Confirmar</button>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int ServicioId { get; set; } = 0;
+    [Parameter]
+    public string Title { get; set; } = "Confirmar acción";
+    [Parameter]
+    public string Message { get; set; } = "¿Estás seguro?";
+    [Parameter]
+    public EventCallback DoCancel { get; set; }
+    [Parameter]
+    public EventCallback<int> DoConfirmation { get; set; }
+}

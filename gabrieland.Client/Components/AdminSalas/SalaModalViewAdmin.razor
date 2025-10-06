@@ -1,0 +1,73 @@
+﻿@using gabrieland.Client.Models
+@inject IJSRuntime JS
+@inject HttpClient Http
+
+@code {
+    [Parameter] public Salas? Sala { get; set; }
+    [Parameter] public List<FotoSala>? FotosSalas { get; set; }
+    [Parameter] public EventCallback CloseIt { get; set; }
+
+    private int currentIndex = 0;
+    private const int maxVisibleImages = 4;
+
+    private void Next()
+    {
+        if (FotosSalas != null && currentIndex + maxVisibleImages < FotosSalas.Count)
+        {
+            currentIndex++;
+        }
+    }
+
+    private void Previous()
+    {
+        if (currentIndex > 0)
+        {
+            currentIndex--;
+        }
+    }
+}
+
+<div class="modal-box">
+    <button class="close-button" @onclick="() => CloseIt.InvokeAsync()">X</button>
+    
+    <h4 class="ms-3 text-start modal-title">@Sala?.Nombre</h4>
+
+    <div class="form-vertical">
+        <label class="ms-3 text-start subtitle">Nombre</label>
+        <input type="text" value="@Sala?.Nombre" readonly class="form-control" />
+
+        <label class="ms-3 text-start subtitle">Capacidad</label>
+        <input type="number" value="@Sala?.Capacidad" readonly class="form-control" />
+
+        <label class="ms-3 text-start subtitle">Precio Actual</label>
+        <input type="text" value="₡@Sala?.Precio" readonly class="form-control" />
+
+        <label class="ms-3 text-start subtitle">Descripción</label>
+        <textarea readonly class="form-control text-descrip">@Sala?.Descripcion</textarea>
+
+        <label class="ms-3 text-start subtitle">Fotos</label>
+        <div class="foto-container">
+            <button class="nav-button" @onclick="Previous" disabled="@(currentIndex == 0)">&#8249;</button>
+
+            @if (FotosSalas != null)
+            {
+                foreach (var foto in FotosSalas.Skip(currentIndex).Take(maxVisibleImages))
+                {
+                    var fullUrl = $"http://localhost:5027{foto.Foto}";
+                    <div class="vertical-container">
+                        <div class="foto-cuadro">
+                            <a href="@fullUrl" target="_blank">
+                                <img src="@fullUrl" class="img-preview" />
+                            </a>
+                        </div>
+                    </div>
+                }
+            }
+
+            <button class="nav-button" @onclick="Next"
+                    disabled="@(FotosSalas == null || currentIndex + maxVisibleImages >= FotosSalas.Count)">
+                &#8250;
+            </button>
+        </div>
+    </div>
+</div>

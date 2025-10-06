@@ -1,0 +1,222 @@
+.big-container {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 160vh;
+  background: white;
+  border-radius: 10px;
+  max-height: 100vh;
+}
+
+.datos{
+  min-width: 75vh;
+  padding-top: 1rem;
+  padding-right: 1rem;
+}
+
+.calendario {
+max-width: 80vh;
+margin: 1rem auto;
+background: #f4f4f4;
+padding: 1rem;
+border-radius: 10px;
+box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+margin-left: 1rem;
+}
+
+.header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 1rem;
+}
+
+.header button {
+background: #233760;
+color: white;
+border: none;
+padding: 0.4rem 0.8rem;
+border-radius: 6px;
+cursor: pointer;
+}
+
+.dias-semana, .dias-grid {
+display: grid;
+grid-template-columns: repeat(7, 1fr);
+gap: 5px;
+}
+
+.dia {
+padding: 0.8rem;
+text-align: center;
+border-radius: 8px;
+cursor: pointer;
+}
+
+.dia.nombre, .dia.vacio {
+background: none;
+cursor: default;
+}
+
+.dia.disponible {
+background: #ffffff;
+border: 1px solid #ccc;
+}
+
+.dia.no-disponible {
+background: #3a3d73;
+color: white;
+}
+
+.dia.seleccionado {
+background: #7d94c6;
+color: white;
+}
+
+.leyenda {
+display: flex;
+justify-content: space-between;
+margin-top: 1rem;
+font-size: 0.8rem;
+}
+
+.leyenda span {
+display: inline-block;
+width: 15px;
+height: 15px;
+border-radius: 50%;
+margin-right: 5px;
+}
+
+.leyenda .disponible { 
+  background: #ffffff; border: 1px solid #ccc; 
+}
+
+.leyenda .no-disponible { 
+  background: #3a3d73; 
+}
+
+.leyenda .seleccionado { 
+  background: #7d94c6; 
+}
+
+.sala-caracteristicas {
+    margin: 4vh 4vh 0vh 4vh;
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.caracteristica {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+    .caracteristica .icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.3rem;
+    }
+
+.name{
+  margin: 2rem 4vh 4vh 4vh;
+  font-size: 1.5rem;
+}
+
+.close-button {
+  padding: 0 2vh 0 2vh;
+  font-size: 1.5rem;
+  border: solid thin;
+  border-color: black;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  float: right;
+  margin-left: 2vh !important;
+}
+
+    .close-button:hover {
+        border-color: #3D5481;
+        border-radius: 8px;
+        background: #3D5481;
+        color: white;
+    }
+
+@media screen and (max-width: 768px) {
+  .big-container {
+    flex-direction: column;
+    max-width: 90vw;
+    max-height: none;
+  }
+
+  .datos {
+    min-width: auto;
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .calendario {
+    max-width: 90vw;
+    margin: 0 auto 1rem auto;
+  }
+
+  .sala-caracteristicas {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .leyenda {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .close-button {
+    float: none;
+    display: block;
+    margin: 1rem auto 0 auto;
+  }
+}
+
+@media screen and (max-width: 400px) {
+  .header span {
+    font-size: 1rem;
+  }
+
+  .dia {
+    font-size: 0.7rem;
+    padding: 0.3rem;
+  }
+
+  .name {
+    display: none;
+    font-size: 1.2rem;
+  }
+
+  .close-button {
+    font-size: 1.2rem;
+  }
+}
+
+.btn-azul {
+    margin-left: 1.5rem;
+    background-color: #233760;
+    color: white;
+    border: none;
+    padding: 0.7rem 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+    .btn-azul:hover {
+        background-color: #3D5481;
+    }
+
+    .btn-azul:active{
+        transform: translateY(2px) !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+    }

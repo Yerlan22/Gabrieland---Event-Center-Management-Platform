@@ -1,0 +1,384 @@
+@using gabrieland.Client.Models
+@using gabrieland.Client.Services
+@using gabrieland.Client.Components.OfertaSalas
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.IdentityModel.Tokens.Jwt;
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ReservaAppState ReservaAppState
+
+@code {
+  [Parameter] public Salas? Sala { get; set; }
+  [Parameter] public EventCallback CloseIt { get; set; }
+  [Parameter] public List<DateTime>? notAvailableDatesD { get; set; }
+  [Parameter] public List<FechaHoraBloqueadas>? halfAvailableDatesD { get; set; }
+  private Reserva? newReserva;
+  private int year = DateTime.Now.Year;
+  private int month = DateTime.Now.Month;
+  private DateTime? fechaSeleccionada = null;
+
+  private DateTime fechaActual = DateTime.Today;
+  private DateTime fechaLimiteBloqueo;
+
+  private List<DateTime> fechasNoDisponibles = new();
+
+  protected override void OnInitialized()
+  {
+    fechaLimiteBloqueo = fechaActual.AddDays(15);
+
+    for (var date = fechaActual; date <= fechaLimiteBloqueo; date = date.AddDays(1))
+    {
+      fechasNoDisponibles.Add(date);
+    }
+
+    if (notAvailableDatesD != null)
+    {
+      fechasNoDisponibles.AddRange(notAvailableDatesD);
+    }
+    ActualizarHorasFin();
+  }
+
+  protected override void OnParametersSet()
+  {
+    if (notAvailableDatesD != null)
+    {
+      foreach (var fecha in notAvailableDatesD)
+      {
+        if (!fechasNoDisponibles.Contains(fecha))
+        {
+          fechasNoDisponibles.Add(fecha);
+        }
+      }
+    }
+  }
+
+  private void MesAnterior()
+  {
+    if (year > fechaActual.Year || (year == fechaActual.Year && month > fechaActual.Month))
+    {
+      if (month == 1)
+      {
+        month = 12;
+        year--;
+      }
+      else
+      {
+        month--;
+      }
+    }
+  }
+
+  private void MesSiguiente()
+  {
+    if (month == 12)
+    {
+      month = 1;
+      year++;
+    }
+    else
+    {
+      month++;
+    }
+  }
+
+  private string ObtenerClaseDia(int dia)
+  {
+    var fecha = new DateTime(year, month, dia);
+
+    if (fechaSeleccionada.HasValue && fechaSeleccionada.Value.Date == fecha.Date)
+      return "seleccionado";
+
+    if (fecha < fechaActual || fechasNoDisponibles.Contains(fecha))
+      return "no-disponible";
+
+    return "disponible";
+  }
+
+  int blockAfter18 = 0;
+  private void SeleccionarDia(int dia)
+  {
+    int diasEnMes = DateTime.DaysInMonth(year, month);
+
+    if (dia < 1 || dia > diasEnMes)
+    {
+      Console.WriteLine($"Día inválido: {dia}/{month}/{year}");
+      return;
+    }
+
+    var fecha = new DateTime(year, month, dia);
+
+    if (fecha < fechaActual)
+    {
+      Console.WriteLine($"Fecha anterior a hoy, no seleccionable: {fecha:yyyy-MM-dd}");
+      return;
+    }
+
+    if (!fechasNoDisponibles.Contains(fecha))
+    {
+      fechaSeleccionada = fecha;
+      Console.WriteLine($"Fecha seleccionada: {fechaSeleccionada:yyyy-MM-dd}");
+
+      if(halfAvailableDatesD != null)
+      {
+        Console.WriteLine("Hay algo alli");
+        Console.WriteLine(halfAvailableDatesD.Count);
+        for(int i = 0; i < halfAvailableDatesD.Count; i++)
+        {
+          Console.WriteLine($"Fecha problema: {halfAvailableDatesD[i].Fecha.Date:yyyy-MM-dd}");
+          if(fecha == halfAvailableDatesD[i].Fecha.Date)
+          {
+            Console.WriteLine("Deberia estar bloq");
+            if(halfAvailableDatesD[i].bloquearHasta <= 14)
+            { 
+              horasInicioDisponibles = Enumerable.Range(14, 7).ToList();
+              startHour = 14;
+              ActualizarHorasFin();
+              
+            } else if (halfAvailableDatesD[i].bloquearDesde == 14 
+            && halfAvailableDatesD[i].bloquearHasta == 20) 
+            {
+              startHour = 8;
+              horasInicioDisponibles = new List<int> { 8, 20 };
+              horasFinDisponibles = new List<int> { 12, 24 };
+
+            } else if (halfAvailableDatesD[i].bloquearDesde >= 18)
+            {
+              startHour = 8;
+              horasInicioDisponibles = Enumerable.Range(8, 6).ToList();
+              ActualizarHorasFinPara18();
+              blockAfter18 = 1;
+              return;
+
+            }  else if (halfAvailableDatesD[i].bloquearDesde == 8
+            && halfAvailableDatesD[i].bloquearHasta < 18)
+            {
+              startHour = 18;
+              horasInicioDisponibles = Enumerable.Range(18, 2).ToList();
+              ActualizarHorasFin();
+            }
+            blockAfter18 = 0;
+            return;
+          }
+        }
+      } 
+      startHour = 8;
+      blockAfter18 = 0;
+      horasInicioDisponibles = Enumerable.Range(8, 12).ToList();
+      horasFinDisponibles = Enumerable.Range(12, 13).ToList();
+      ActualizarHorasFin();
+    }
+    else
+    {
+      Console.WriteLine($"Fecha no disponible: {fecha:yyyy-MM-dd}");
+    }
+  }
+
+  private async Task proceedReservation()
+  {
+    var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+    var user = authState.User;
+    int? id = int.TryParse(user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var result) ? result : (int?)null;
+
+    newReserva = new Reserva();
+    newReserva.Hora_Inicio = startHour;
+    newReserva.Hora_Final = endHour;
+    newReserva.Duracion = endHour - startHour;
+    newReserva.Estado_Reserva = (EstadoReserva)0;
+
+    if (fechaSeleccionada != null)
+    {
+      fechaSeleccionada = fechaSeleccionada.Value + new TimeSpan(startHour, 0, 0);
+      newReserva.Fecha = fechaSeleccionada.Value;
+    }
+    newReserva.SAL_Id_Sala = Sala.IdSala;
+    if (id != null)
+    {
+      newReserva.USU_Id_Usuario = id.Value;
+    }
+
+    ReservaAppState.ReservaActual = newReserva;
+
+    GoToAddServices();
+
+    Console.WriteLine(newReserva.Hora_Inicio);
+    Console.WriteLine(newReserva.Hora_Final);
+    Console.WriteLine(newReserva.Duracion);
+    Console.WriteLine(newReserva.Estado_Reserva);
+    Console.WriteLine(newReserva.Fecha);
+    Console.WriteLine(newReserva.SAL_Id_Sala);
+    Console.WriteLine(newReserva.USU_Id_Usuario);
+  }
+
+    private async Task proceedReservation2()
+  {
+    var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+    var user = authState.User;
+    int? id = int.TryParse(user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var result) ? result : (int?)null;
+
+    newReserva = new Reserva();
+    newReserva.Hora_Inicio = startHour;
+    newReserva.Hora_Final = endHour;
+    newReserva.Duracion = endHour - startHour;
+    newReserva.Estado_Reserva = (EstadoReserva)0;
+
+    if (fechaSeleccionada != null)
+    {
+      fechaSeleccionada = fechaSeleccionada.Value + new TimeSpan(startHour, 0, 0);
+      newReserva.Fecha = fechaSeleccionada.Value;
+    }
+    newReserva.SAL_Id_Sala = Sala.IdSala;
+    if (id != null)
+    {
+      newReserva.USU_Id_Usuario = id.Value;
+    }
+
+    ReservaAppState.ReservaActual = newReserva;
+
+    GoToConfirmReservation();
+
+    Console.WriteLine(newReserva.Hora_Inicio);
+    Console.WriteLine(newReserva.Hora_Final);
+    Console.WriteLine(newReserva.Duracion);
+    Console.WriteLine(newReserva.Estado_Reserva);
+    Console.WriteLine(newReserva.Fecha);
+    Console.WriteLine(newReserva.SAL_Id_Sala);
+    Console.WriteLine(newReserva.USU_Id_Usuario);
+  }
+
+  private int startHour = 8;
+  private int endHour = 12;
+
+  private List<int> horasInicioDisponibles = Enumerable.Range(8, 13).ToList(); // 8 a 20
+  private List<int> horasFinDisponibles = Enumerable.Range(12, 13).ToList();   // 12 a 23
+
+  private void ActualizarHorasFin()
+  {
+    horasFinDisponibles = Enumerable
+      .Range(startHour + 4, Math.Max(0, 24 - (startHour + 4) + 1))
+      .Where(h => h <= 24)
+      .ToList();
+
+    endHour = horasFinDisponibles.FirstOrDefault();
+  }
+
+  private void ActualizarHorasFinPara18()
+  {
+    horasFinDisponibles = Enumerable
+      .Range(startHour + 4, Math.Max(0, 24 - (startHour + 4) + 1))
+      .Where(h => h < 18)
+      .ToList();
+
+    endHour = horasFinDisponibles.FirstOrDefault();
+  }
+  private async Task OnHoraInicioChanged(ChangeEventArgs e)
+  {
+    if (int.TryParse(e.Value?.ToString(), out int nuevaHoraInicio))
+    {
+      startHour = nuevaHoraInicio;
+      if(blockAfter18 == 0)
+      {
+        ActualizarHorasFin();
+      } else 
+      {
+        ActualizarHorasFinPara18();
+      }
+      
+    }
+  }
+
+  private void GoToAddServices()
+  {
+    Navigation.NavigateTo("/addservicios");
+  }
+  private void GoToConfirmReservation()
+  {
+    Navigation.NavigateTo("/quoteReservation");
+  }
+}
+
+
+<div class="big-container">
+  <div class="calendario"> 
+    <div class="header"> 
+      <button @onclick="MesAnterior" disabled="@(year < fechaActual.Year || (year == fechaActual.Year && month <= fechaActual.Month))">‹</button>  
+      <span>@(new DateTime(year, month, 1).ToString("MMMM yyyy", new System.Globalization.CultureInfo("es-ES")))</span> 
+      <button @onclick="MesSiguiente">›</button> 
+    </div>
+    <div class="dias-semana">
+        @foreach (var dia in new[] { "Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb" })
+        {
+          <div class="dia nombre">@dia</div>
+        }
+    </div>
+    <div class="dias-grid">
+      @{
+        var primerDia = new DateTime(year, month, 1);
+        var offset = ((int)primerDia.DayOfWeek);
+        for (int i = 0; i < offset; i++)
+        {
+          <div class="dia vacio" @onclick:stopPropagation></div>
+        }
+
+        var diasMes = DateTime.DaysInMonth(year, month);
+        for (int d = 1; d <= diasMes; d++)
+        {
+            int diaActual = d;
+            //Console.WriteLine($"Renderizando día: {diaActual}"); // 👈 Esto solo en desarrollo
+            <div class="dia @ObtenerClaseDia(diaActual)" @onclick="() => SeleccionarDia(diaActual)">
+                @diaActual
+            </div>
+        }
+      }
+    </div>
+
+    <div class="leyenda">
+      <div><span class="leyenda disponible"></span> Fecha Disponible</div>
+      <div><span class="leyenda no-disponible"></span> Fecha No Disponible</div>
+      <div><span class="leyenda seleccionado"></span> Fecha Seleccionada</div>
+    </div>
+  </div>
+  <div class="datos">
+    <span class="name">@Sala?.Nombre</span>
+    <button class="close-button" @onclick="() => CloseIt.InvokeAsync()">X</button>
+    <div class="sala-caracteristicas">
+      <div class="caracteristica">
+        <span class="icon">💳</span>
+        <span>Costo de reserva</span>
+        <strong>₡@Sala.Precio por hora</strong>
+      </div>
+        <div class="caracteristica">
+        <span class="icon">👥</span>
+        <span>Capacidad</span>
+        <strong>@Sala.Capacidad personas</strong>
+      </div>
+    </div>
+
+    <div class="form-group mx-4">
+      <label>Hora de inicio</label>
+      <select class="form-control" @onchange="OnHoraInicioChanged">
+        @foreach (var h in horasInicioDisponibles)
+        {
+          <option value="@h" selected="@(h == startHour)">
+          @h:00
+          </option>
+        }
+      </select>
+    </div>
+
+    @if (horasFinDisponibles.Any())
+    {
+      <div class="form-group mx-4">
+        <label>Hora de fin</label>
+        <select class="form-control" @bind="endHour">
+          @foreach (var h in horasFinDisponibles)
+          {
+            <option value="@h">@h:00</option>
+          }
+        </select>
+      </div>
+    }
+    <button class="btn-azul" @onclick="proceedReservation2" >Proceder con la reserva</button>
+    <button class="btn-azul" @onclick="proceedReservation" >Añadir servicios</button>
+  </div>
+</div>

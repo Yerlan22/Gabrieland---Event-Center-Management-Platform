@@ -1,0 +1,60 @@
+﻿@namespace gabrieland.Client.Components.OfertasServicios
+@using gabrieland.Client.Models
+@inject NavigationManager Navigation
+@inject HttpClient Http
+
+@code {
+  [Parameter]
+  public ServicioAdicional? Servicio { get; set; }
+  [Parameter]
+  public string? Foto { get; set; }
+
+  private List<FotoServicio>? fotosServicios;
+
+    protected override async Task OnInitializedAsync()
+    {
+        fotosServicios = await Http.GetFromJsonAsync<List<FotoServicio>>($"Servicios/Fotos/{Servicio.ID_Servicios_Adicionales}");
+        if(fotosServicios?.Count > 0)    
+            Foto = fotosServicios[0].foto;
+    }
+
+  private void IrADetalle()
+    {
+        if (Servicio is not null)
+        {
+            Navigation.NavigateTo($"/servicios/{Servicio.ID_Servicios_Adicionales}");
+        }
+    }
+    
+}
+
+<div class="carta-sala mb-3" @onclick="IrADetalle" style="cursor: pointer;">
+    @if (Servicio is not null)
+    {   @if (!string.IsNullOrEmpty(Foto))
+        { 
+          var fullUrl = $"http://localhost:5027{Foto}";
+          <img src="@fullUrl" alt="Imagen de @Servicio.nombre" class="sala-imagen" />
+        } else if(Servicio.TSO_ID_Tipo_Servicio == 1) {
+          <img src="https://st3.depositphotos.com/13349494/31670/i/450/depositphotos_316706074-stock-photo-mixed-fresh-cocktails-glasses-bar.jpg" alt="Imagen de @Servicio.nombre" class="sala-imagen" />
+        } else if(Servicio.TSO_ID_Tipo_Servicio == 2) {
+          <img src="https://blog.pioneer-mexico.com.mx/hubfs/dj-productor-musical.jpg" alt="Imagen de @Servicio.nombre" class="sala-imagen" />
+        } else if(Servicio.TSO_ID_Tipo_Servicio == 3) {
+          <img src="https://mlri412iwjbc.i.optimole.com/cb:c8wx~30e01/w:1500/h:1000/q:mauto/f:best/https://www.davidaustin.com/wp-content/uploads/2020/06/floral-table-decorations-with-edith-roses.jpg" alt="Imagen de @Servicio.nombre" class="sala-imagen" />
+        } else if(Servicio.TSO_ID_Tipo_Servicio == 4) {
+          <img src="https://files.pucp.education/puntoedu/wp-content/uploads/2023/07/10050117/personal-de-seguridad-del-campus-recibio-capacitacion-en-valores-pucp-y-respeto-a-la-diversidad.jpg" alt="Imagen de @Servicio.nombre" class="sala-imagen" />
+        } else {
+          <img src="https://www.teletrans.com/wp-content/uploads/2021/03/transporte-privado-de-pasajeros.jpg" alt="Imagen de @Servicio.nombre" class="sala-imagen" />
+        } 
+        <div class="contenido">
+            <h4 class="nombre">@Servicio.nombre</h4>
+            <p class="descripcion">@((Servicio.descripcion?.Length > 100)
+                ? Servicio.descripcion.Substring(0, 100) + "..." : Servicio.descripcion)</p>
+            <p class="precio">Precio: ₡ @Servicio.costo.ToString("N0") por hora</p>
+            <p class="continue">Hacer click para ver más información → </p>
+        </div>
+    }
+    else
+    {
+        <p>Cargando Servicio...</p>
+    }
+</div>

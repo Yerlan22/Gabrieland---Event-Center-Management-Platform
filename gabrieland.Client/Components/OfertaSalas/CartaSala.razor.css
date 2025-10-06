@@ -1,0 +1,129 @@
+.carta-sala {
+    display: flex;
+    flex-direction: row;
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    max-width: 630px;
+    max-height: 200px;
+    min-width: 630px;
+    min-height: 200px;
+}
+
+.carta-sala:hover {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+}
+
+.sala-imagen {
+    width: 35%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.contenido {
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1;
+}
+
+.nombre {
+    font-size: 1.05rem;
+    font-weight: bold;
+    margin: 0 0 0.5rem 0;
+}
+
+.descripcion {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-bottom: 0.75rem;
+}
+
+.precio {
+    font-weight: bold;
+    font-size: 0.75rem;
+    margin-bottom: 0.50rem;
+}
+
+.continue{
+    font-size: 0.5rem;
+    margin-bottom: 0rem;
+}
+
+.mas-informacion {
+    color: #6366f1;
+    font-size: 0.75rem; /* texto normal */
+    font-weight: 500;
+    text-decoration: none;
+    margin-top: auto;
+}
+
+.mas-informacion:hover {
+    text-decoration: underline;
+}
+
+.carta-sala {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.carta-sala:hover {
+    transform: scale(1.01);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Media Query para pantallas más pequeñas */
+@media (max-width: 768px) {
+    .carta-sala {
+        flex-direction: column; 
+        min-width: 35vh;          
+        max-width: 35vh;     
+        max-height: none;       
+        min-height: 350px;     
+    }
+
+    .sala-imagen {
+        width: 100%;
+        height: 200px; 
+    }
+
+    .contenido {
+        padding: 1rem;
+    }
+
+    .nombre {
+        font-size: 1.2rem;
+    }
+
+    .descripcion, .precio, .mas-informacion {
+        font-size: 0.85rem;
+    }
+}
+
+/* Media Query para pantallas muy pequeñas (móviles) */
+@media (max-width: 480px) {
+    .carta-sala {
+        min-height: 320px; 
+    }
+
+    .sala-imagen {
+        height: 180px; 
+    }
+
+    .contenido {
+        padding: 0.8rem; 
+    }
+
+    .nombre {
+        font-size: 1rem;
+    }
+
+    .descripcion, .precio, .mas-informacion {
+        font-size: 0.7rem;
+    }
+}

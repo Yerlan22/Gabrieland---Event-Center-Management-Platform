@@ -1,0 +1,53 @@
+@using gabrieland.Client.Models
+@using gabrieland.Client.Components.AdminSalas
+
+@code {
+    [Parameter]
+    public Salas? Sala { get; set; }
+    [Parameter]
+    public EventCallback<Salas> OnEdit { get; set; }
+    [Parameter]
+    public EventCallback<Salas> OnReview { get; set; }
+    [Parameter]
+    public EventCallback<int> OnDelete { get; set; }
+}
+
+@if (Sala is not null)
+{
+    <tr class="desktop-mode" @onclick="async () => await OnReview.InvokeAsync(Sala)" style="cursor: pointer;">
+        <td>@Sala.Nombre</td>
+        <td>@Sala.Capacidad</td>
+        <td>₡ @Sala.Precio</td>
+        <td class="text-end">
+            <button class="btn btn-secondary me-2"
+                @onclick:stopPropagation 
+                @onclick="async () => await OnEdit.InvokeAsync(Sala)">
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-secondary"
+                @onclick:stopPropagation
+                @onclick="() => OnDelete.InvokeAsync(Sala.IdSala)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    </tr>
+
+    <!-- Esta la vara que style vea en el celular ptm estoy harto-->
+    <div class="sala-card-admin phone-mode">
+        <div class="info">
+            <h5>@Sala.Nombre</h5>
+            <small>Capacidad: @Sala.Capacidad</small>
+            <small>Precio: ₡ @Sala.Precio</small>
+        </div>
+        <div class="d-flex justify-content-end mt-2">
+            <button class="btn btn-secondary me-2"
+                @onclick="async () => await OnEdit.InvokeAsync(Sala)">
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-secondary"
+                @onclick="() => OnDelete.InvokeAsync(Sala.IdSala)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    </div>
+}

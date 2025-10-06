@@ -1,0 +1,44 @@
+﻿.hero-container {
+    position: relative;
+    background-image: url('https://terrazasyparrillas.com/wp-content/uploads/2021/05/1-2048x1152.png');
+    background-size: cover;
+    background-position: center;
+    height: 700px;
+    width: 100%;
+    color: white;
+}
+
+.overlay {
+    background-color: rgba(0, 0, 0, 0.7);
+    height: 40%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.input-group {
+    margin-top: 20px;
+}
+
+input {
+    padding: 10px;
+    width: 250px;
+    margin-right: 10px;
+}
+
+.btn {
+    padding: 10px 20px;
+    background-color: #233760;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+    .btn:hover {
+        background: #3D5481;
+        color: white;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        transform: translateY(-2px);
+    }
