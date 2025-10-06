@@ -1,0 +1,47 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Navigation
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            @{
+                var isProtected = Attribute.IsDefined(routeData.PageType, typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute));
+            }
+
+            @if (isProtected)
+            {
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                    <NotAuthorized>
+                        <h3>No estás autorizado para ver esta página.</h3>
+                        <button class="btn btn-primary" @onclick="VolverAlInicio">
+                            Volver al inicio
+                        </button>
+                    </NotAuthorized>
+                    <Authorizing>
+                        <h3>Autenticando...</h3>
+                    </Authorizing>
+                </AuthorizeRouteView>
+            }
+            else
+            {
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+            }
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <h3>Página no encontrada.</h3>
+                <p>La página que buscas no existe.</p>
+                <button class="btn btn-primary" @onclick="VolverAlInicio">
+                    Volver al inicio
+                </button>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
+
+@code {
+    void VolverAlInicio()
+    {
+        Navigation.NavigateTo("/");
+    }
+}
